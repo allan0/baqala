@@ -17,7 +17,7 @@
 ## 🚀 Running Locally
 
 **1. Clone the repository:**
-git clone https://github.com/YOUR_USERNAME/baqala-ecosystem.git
+git clone https://github.com/allan0/baqala.git
 cd baqala-ecosystem
 
 **2. Setup Backend:**
