@@ -1,28 +1,22 @@
-# Dependencies
+# Node Modules
 node_modules/
+frontend/node_modules/
+backend/node_modules/
 
 # Environment Variables (NEVER PUSH THESE)
 .env
 .env.local
+backend/.env
+frontend/.env
 
-# Frontend (Vite/React)
+# Build outputs
 frontend/dist/
 frontend/dist-ssr/
 frontend/*.local
 
-# Backend
+# Backend database
 backend/database.json
 
-# Contracts (Hardhat)
-contracts/artifacts/
-contracts/cache/
-contracts/coverage/
-contracts/coverage.json
-contracts/typechain/
-contracts/typechain-types/
-
-# OS / Editor Files
+# OS Files
 .DS_Store
-.vscode/
-.idea/
 *.log

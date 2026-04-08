@@ -129,3 +129,34 @@ body {
 .login-container { height: 80vh; justify-content: center; }
 .mt-15 { margin-top: 15px; }
 .mb-15 { margin-bottom: 15px; }
+/* --- NEW FEATURE STYLES --- */
+
+.floating-cart {
+  position: sticky;
+  bottom: 20px;
+  border: 2px solid var(--primary-btn);
+  box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.4);
+  animation: slideUp 0.3s ease-out forwards;
+  z-index: 100;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(50px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.store-header {
+  margin-bottom: 20px;
+  text-align: center;
+  border: none !important;
+}
+
+/* Ensure inputs are visible in dark mode */
+input {
+  color: var(--text-color) !important;
+  background-color: var(--bg-color) !important;
+}
+input::placeholder {
+  color: var(--hint-color);
+  opacity: 0.7;
+}

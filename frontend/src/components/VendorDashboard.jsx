@@ -2,14 +2,19 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
 const WebApp = window.Telegram?.WebApp;
-const API_URL = import.meta.env.VITE_API_URL || "${API_URL}";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
 export default function VendorDashboard({ user, location }) {
-  const[myBaqala, setMyBaqala] = useState(null);
-  const [vendorApps, setVendorApps] = useState([]);
+  const [myBaqala, setMyBaqala] = useState(null);
+  const[vendorApps, setVendorApps] = useState([]);
   const [newBaqalaName, setNewBaqalaName] = useState("");
-  const[baqalaWallet, setBaqalaWallet] = useState("");
+  const [baqalaWallet, setBaqalaWallet] = useState("");
   const [newItem, setNewItem] = useState({ name: '', price: '', cryptoDiscount: 10 });
   const [creditLimitInput, setCreditLimitInput] = useState({});
+
+  const triggerHaptic = (style = 'medium') => {
+    if (WebApp?.HapticFeedback) WebApp.HapticFeedback.impactOccurred(style);
+  };
 
   useEffect(() => {
     if (user) {
@@ -24,6 +29,7 @@ export default function VendorDashboard({ user, location }) {
 
   const handleRegisterBaqala = async (e) => {
     e.preventDefault();
+    triggerHaptic('heavy');
     if (!location) return alert("Please allow location access to register a Baqala.");
     const res = await axios.post(`${API_URL}/api/baqala`, {
       name: newBaqalaName, lat: location.lat, lng: location.lng, ownerId: user.id, walletAddress: baqalaWallet
@@ -34,12 +40,14 @@ export default function VendorDashboard({ user, location }) {
 
   const handleAddItem = async (e) => {
     e.preventDefault();
+    triggerHaptic('light');
     const res = await axios.post(`${API_URL}/api/baqala/${myBaqala.id}/item`, newItem);
     setMyBaqala({ ...myBaqala, inventory: res.data.inventory });
     setNewItem({ name: '', price: '', cryptoDiscount: 10 });
   };
 
   const approveApplication = async (appId) => {
+    triggerHaptic('medium');
     const limit = creditLimitInput[appId];
     if (!limit || limit <= 0) return alert("Please set a valid credit limit.");
     await axios.post(`${API_URL}/api/approve`, { appId, limit });
@@ -49,7 +57,8 @@ export default function VendorDashboard({ user, location }) {
   };
 
   const handleSyncLedger = async () => {
-    await axios.post('${API_URL}/api/sync-ledger', { baqalaId: myBaqala.id });
+    triggerHaptic('heavy');
+    await axios.post(`${API_URL}/api/sync-ledger`, { baqalaId: myBaqala.id });
     const msg = "Daily Ledger successfully synced to the Blockchain!";
     WebApp?.isVersionAtLeast && WebApp.isVersionAtLeast('6.2') ? WebApp.showAlert(msg) : alert(msg);
   };
@@ -59,8 +68,8 @@ export default function VendorDashboard({ user, location }) {
       <div className="card">
         <h2>Register Your Baqala</h2>
         <form onSubmit={handleRegisterBaqala} style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '15px' }}>
-          <input type="text" placeholder="Baqala Name" value={newBaqalaName} onChange={e => setNewBaqalaName(e.target.value)} required style={{padding: '10px', border: '1px solid #d1fae5', borderRadius: '10px'}}/>
-          <input type="text" placeholder="Web3 Wallet Address (0x...)" value={baqalaWallet} onChange={e => setBaqalaWallet(e.target.value)} required style={{padding: '10px', border: '1px solid #d1fae5', borderRadius: '10px'}}/>
+          <input type="text" placeholder="Baqala Name" value={newBaqalaName} onChange={e => setNewBaqalaName(e.target.value)} required style={{padding: '10px', borderRadius: '10px', border: '1px solid var(--secondary-bg)', background: 'var(--bg-color)', color: 'var(--text-color)'}}/>
+          <input type="text" placeholder="Web3 Wallet Address (0x...)" value={baqalaWallet} onChange={e => setBaqalaWallet(e.target.value)} required style={{padding: '10px', borderRadius: '10px', border: '1px solid var(--secondary-bg)', background: 'var(--bg-color)', color: 'var(--text-color)'}}/>
           <button type="submit" className="btn-primary">Register Store</button>
         </form>
       </div>
@@ -69,23 +78,30 @@ export default function VendorDashboard({ user, location }) {
 
   return (
     <div className="vendor-dashboard">
-      <h2>🏪 {myBaqala.name} Dashboard</h2>
-      <p style={{ fontSize: '12px', wordBreak: 'break-all', marginBottom: '15px' }}>Wallet: {myBaqala.walletAddress || 'Not set'}</p>
+      <div className="card" style={{ background: '#064e3b', color: 'white', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
+        <h2 style={{ color: 'white' }}>🏪 {myBaqala.name}</h2>
+        <p style={{ opacity: 0.8, fontSize: '13px', marginTop: '5px' }}>Store ID: {myBaqala.id}</p>
+        <div style={{ marginTop: '15px', background: 'white', padding: '10px', borderRadius: '10px', display: 'inline-block' }}>
+          {/* Mock QR Code representation */}
+          <img src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${myBaqala.id}`} alt="Store QR" />
+        </div>
+        <p style={{ fontSize: '12px', marginTop: '10px', opacity: 0.9 }}>Let customers scan this to apply for Hisaab</p>
+      </div>
 
-      <button className="btn-primary mb-15" onClick={handleSyncLedger} style={{background: '#064e3b'}}>
-        ⛓️ Sync Daily Ledger to Blockchain
+      <button className="btn-primary mb-15" onClick={handleSyncLedger} style={{background: '#10b981', color: 'white'}}>
+        ⛓️ Sync Ledger to Blockchain
       </button>
 
       {vendorApps.filter(a => a.status === 'pending').length > 0 && (
-        <div className="card" style={{ border: '2px solid #f59e0b' }}>
-          <h3 style={{ color: '#f59e0b' }}>Pending Applications</h3>
+        <div className="card" style={{ border: '2px solid #f59e0b', background: 'rgba(245, 158, 11, 0.05)' }}>
+          <h3 style={{ color: '#f59e0b' }}>🔔 Pending Applications</h3>
           <ul className="order-list">
             {vendorApps.filter(a => a.status === 'pending').map(app => (
-              <li key={app.id} style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
-                <strong>{app.userName}</strong> wants Hisaab.
+              <li key={app.id} style={{ flexDirection: 'column', alignItems: 'flex-start', borderBottom: 'none' }}>
+                <strong style={{ color: 'var(--text-color)' }}>{app.userName}</strong> wants Hisaab.
                 <div className="flex-form" style={{ width: '100%', marginTop: '10px' }}>
-                  <input type="number" placeholder="Limit (AED)" style={{flex: 1, padding: '8px', border: '1px solid #d1fae5', borderRadius: '10px'}} onChange={(e) => setCreditLimitInput({ ...creditLimitInput, [app.id]: e.target.value })} />
-                  <button className="btn-secondary" style={{padding: '8px 16px'}} onClick={() => approveApplication(app.id)}>Approve</button>
+                  <input type="number" placeholder="Limit (AED)" style={{flex: 1, padding: '8px', border: '1px solid var(--secondary-bg)', borderRadius: '10px', background: 'var(--bg-color)', color: 'var(--text-color)'}} onChange={(e) => setCreditLimitInput({ ...creditLimitInput,[app.id]: e.target.value })} />
+                  <button className="btn-primary" style={{padding: '8px 16px', width: 'auto'}} onClick={() => approveApplication(app.id)}>Approve</button>
                 </div>
               </li>
             ))}
@@ -94,7 +110,7 @@ export default function VendorDashboard({ user, location }) {
       )}
 
       <div className="card">
-        <h3>Add to Inventory</h3>
+        <h3>📦 Add to Inventory</h3>
         <form onSubmit={handleAddItem} className="inventory-form" style={{marginTop: '15px'}}>
           <input type="text" placeholder="Item Name" value={newItem.name} onChange={e => setNewItem({ ...newItem, name: e.target.value })} required />
           <input type="number" placeholder="Price (AED)" value={newItem.price} onChange={e => setNewItem({ ...newItem, price: e.target.value })} required />
@@ -104,9 +120,9 @@ export default function VendorDashboard({ user, location }) {
       </div>
 
       <div className="card">
-        <h3>Current Inventory</h3>
+        <h3>🛒 Current Inventory</h3>
         <ul className="order-list">
-          {myBaqala.inventory.length === 0 ? <p style={{opacity: 0.5}}>No items added yet.</p> : myBaqala.inventory.map(item => (
+          {myBaqala.inventory.length === 0 ? <p style={{opacity: 0.5, marginTop: '10px'}}>No items added yet.</p> : myBaqala.inventory.map(item => (
             <li key={item.id}>
               <span>{item.name} <br/><small style={{opacity: 0.6}}>AED {item.price}</small></span>
               <span className="badge-crypto">{item.cryptoDiscount}% Crypto Off</span>
