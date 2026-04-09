@@ -1,162 +1,343 @@
-:root {
-  /* Fallbacks for standard web browsers (Guests) */
-  --fallback-bg: #ecfdf5;
-  --fallback-text: #064e3b;
-  --fallback-hint: #6b7280;
-  --fallback-btn: #10b981;
-  --fallback-btn-text: #ffffff;
-  --fallback-card: #ffffff;
-  --fallback-secondary-bg: #f3f4f6;
+/* ==========================================
+   ./frontend/src/App.css - LUXURY UPGRADE (Final)
+   ========================================== */
 
-  /* Native Telegram Theme Variables (Dynamically changes for each user) */
-  --bg-color: var(--tg-theme-bg-color, var(--fallback-bg));
-  --text-color: var(--tg-theme-text-color, var(--fallback-text));
-  --hint-color: var(--tg-theme-hint-color, var(--fallback-hint));
-  --link-color: var(--tg-theme-link-color, var(--fallback-btn));
-  --primary-btn: var(--tg-theme-button-color, var(--fallback-btn));
-  --primary-btn-text: var(--tg-theme-button-text-color, var(--fallback-btn-text));
-  --secondary-bg: var(--tg-theme-secondary-bg-color, var(--fallback-secondary-bg));
-  --card-bg: var(--tg-theme-bg-color, var(--fallback-card));
+:root {
+  /* Logo Colors */
+  --logo-teal: #00D4C8;
+  --logo-orange: #FF6B00;
+  --shining-gradient: linear-gradient(90deg, #00D4C8, #FF6B00, #00D4C8);
+  
+  /* Luxury Dark Theme */
+  --lux-dark: #0F172A;
+  --lux-card: #1E2937;
+  --lux-border: rgba(0, 212, 200, 0.25);
+  --lux-text: #F1F5F9;
+  --lux-hint: #94A3B8;
+  --accent-gold: #FACC15;
+
+  /* Telegram Fallbacks */
+  --bg-color: var(--lux-dark);
+  --text-color: var(--lux-text);
+  --hint-color: var(--lux-hint);
+  --primary-btn: var(--logo-teal);
+  --primary-btn-text: #ffffff;
+  --secondary-bg: #334155;
+  --card-bg: var(--lux-card);
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  background-color: var(--bg-color);
-  color: var(--text-color);
+  background-color: var(--lux-dark);
+  color: var(--lux-text);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 
+/* Container & Utilities */
 .app-container {
   padding: 20px;
+  padding-bottom: 100px; /* Prevents bottom-nav overlap */
   max-width: 600px;
   margin: 0 auto;
+  min-height: 100vh;
 }
 
-.app-header { text-align: center; margin-bottom: 30px; }
-.app-header h1 { font-size: 26px; color: var(--link-color); margin-bottom: 5px; }
+.mt-15 { margin-top: 15px; }
+.mb-15 { margin-bottom: 15px; }
+.login-container { display: flex; flex-direction: column; justify-content: center; height: 80vh; }
+
+/* Luxury Header */
+.app-header {
+  text-align: center;
+  padding: 10px 0 25px;
+  position: relative;
+}
+
+.app-header h1 {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  background: var(--shining-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
 
 .wallet-badge {
-  font-size: 12px; margin-top: 5px;
-  color: var(--text-color);
+  font-size: 13px;
+  font-weight: 600;
+  background: rgba(255, 107, 0, 0.15);
+  color: var(--logo-orange);
+  padding: 6px 14px;
+  border-radius: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Shining Gradient Button */
+.btn-primary {
+  background: var(--shining-gradient);
+  background-size: 200% 200%;
+  animation: shine 3s linear infinite;
+  color: white;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  border: none;
+  padding: 14px 24px;
+  border-radius: 16px;
+  font-size: 16px;
+  width: 100%;
+  cursor: pointer;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+  box-shadow: 0 8px 25px -5px rgba(0, 212, 200, 0.4);
+}
+
+.btn-primary:active { transform: scale(0.96); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; animation: none; box-shadow: none; background: var(--secondary-bg); color: var(--lux-hint); }
+
+@keyframes shine {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.btn-secondary {
   background: var(--secondary-bg);
-  padding: 4px 10px; border-radius: 20px;
-  display: inline-block;
+  color: var(--logo-teal);
+  font-weight: 600;
+  border: none;
+  padding: 14px 24px;
+  border-radius: 16px;
+  font-size: 16px;
+  width: 100%;
+  cursor: pointer;
+  transition: transform 0.2s ease;
 }
-
-/* Buttons using Telegram's exact button colors */
-.btn-primary, .btn-secondary {
-  border: none; padding: 12px 20px; border-radius: 12px;
-  font-size: 16px; font-weight: bold; cursor: pointer;
-  transition: opacity 0.2s, transform 0.1s; width: 100%;
-}
-
-.btn-primary { background-color: var(--primary-btn); color: var(--primary-btn-text); }
-.btn-secondary { background-color: var(--secondary-bg); color: var(--link-color); }
-.btn-primary:active, .btn-secondary:active { transform: scale(0.98); opacity: 0.8; }
-.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-secondary:active { transform: scale(0.96); }
 
 .btn-text {
-  background: none; border: none; color: var(--link-color);
-  text-decoration: underline; cursor: pointer; font-size: 14px; font-weight: 500;
+  background: none;
+  border: none;
+  color: var(--logo-teal);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
 }
 
-/* Cards natively adapt to dark/light mode */
+/* Premium Cards */
 .card, .hisaab-card {
-  background: var(--card-bg);
-  border: 1px solid var(--secondary-bg);
-  border-radius: 16px; padding: 20px; margin-bottom: 20px;
+  background: var(--lux-card);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 20px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 10px 30px -15px rgba(0, 0, 0, 0.5);
+  transition: transform 0.2s ease;
 }
 
-.hisaab-card { border: 2px solid var(--primary-btn); }
-.hisaab-card h2 { margin-bottom: 15px; font-weight: 500; }
+.hisaab-card {
+  border: 1px solid var(--lux-border);
+  box-shadow: 0 10px 30px -10px rgba(0, 212, 200, 0.2);
+}
+.hisaab-card h2 { font-size: 20px; font-weight: 600; }
 
-.price-split { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 20px; }
+/* Price Split */
+.price-split {
+  display: flex;
+  gap: 12px;
+  margin: 20px 0;
+}
+
 .price-box {
-  flex: 1; padding: 15px; border-radius: 12px;
-  background: var(--secondary-bg);
+  flex: 1;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 16px;
+  border-radius: 16px;
+  text-align: center;
+  border: 1px solid rgba(255,255,255,0.02);
 }
-.price-box p { font-size: 14px; color: var(--hint-color); margin-bottom: 5px; }
-.price-box h3 { font-size: 22px; font-weight: 800; color: var(--text-color); }
 
-/* Forms */
-.flex-form { display: flex; gap: 10px; }
-.flex-form input, .inventory-form input {
-  flex: 1; padding: 10px 15px;
-  background-color: var(--bg-color);
-  color: var(--text-color);
-  border: 1px solid var(--secondary-bg);
-  border-radius: 10px; outline: none;
-}
-.flex-form input:focus { border-color: var(--link-color); }
+.price-box p { font-size: 13px; color: var(--lux-hint); margin-bottom: 4px; }
+.price-box h3 { font-size: 22px; font-weight: 800; color: var(--lux-text); }
+.price-box.crypto h3 { color: var(--logo-teal); }
+
+/* Forms & Inputs */
+.flex-form { display: flex; gap: 10px; align-items: center; }
 .inventory-form { display: flex; flex-direction: column; gap: 10px; }
+
+input {
+  background: rgba(255,255,255,0.05) !important;
+  border: 1px solid rgba(255,255,255,0.1) !important;
+  color: var(--lux-text) !important;
+  border-radius: 12px;
+  padding: 14px;
+  font-size: 15px;
+  width: 100%;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+input::placeholder { color: rgba(255,255,255,0.3); }
+input:focus {
+  border-color: var(--logo-teal) !important;
+  background: rgba(0, 212, 200, 0.05) !important;
+  box-shadow: 0 0 0 3px rgba(0, 212, 200, 0.15);
+}
+
+/* Profile Tabs */
+.profile-tabs {
+  display: flex;
+  overflow-x: auto;
+  gap: 10px;
+  padding-bottom: 10px;
+  margin-bottom: 20px;
+  scrollbar-width: none; /* Firefox */
+}
+.profile-tabs::-webkit-scrollbar { display: none; } /* Chrome/Safari */
+
+.tab-btn {
+  background: var(--secondary-bg);
+  color: var(--lux-text);
+  border: none;
+  padding: 10px 20px;
+  border-radius: 30px;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.tab-btn.active {
+  background: var(--shining-gradient);
+  background-size: 200% 200%;
+  animation: shine 3s linear infinite;
+  color: white;
+  box-shadow: 0 4px 15px -3px rgba(0, 212, 200, 0.4);
+}
+
+/* Grids & Storefront */
+.baqala-grid, .inventory-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.baqala-card, .item-card {
+  background: var(--lux-card);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 18px;
+  padding: 16px;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.baqala-card:active, .item-card:active { transform: scale(0.98); }
+
+.item-card h4 { margin-bottom: 8px; font-weight: 600; font-size: 15px; }
+.cash-price { text-decoration: line-through; color: var(--lux-hint); font-size: 12px; margin-bottom: 2px; }
+.crypto-price { font-weight: 800; color: var(--logo-teal); font-size: 16px; }
+
+.discount-tag {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: var(--logo-orange);
+  color: white;
+  padding: 4px 10px;
+  border-bottom-left-radius: 12px;
+  font-size: 11px;
+  font-weight: 800;
+  box-shadow: -2px 2px 10px rgba(255, 107, 0, 0.3);
+}
 
 /* Lists */
 .order-list { list-style: none; }
 .order-list li {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 15px 0; border-bottom: 1px solid var(--secondary-bg); font-size: 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  font-size: 14px;
 }
-.order-list li:last-child { border-bottom: none; }
+.order-list li:last-child { border-bottom: none; padding-bottom: 0; }
 
 .badge-crypto {
-  background: var(--secondary-bg); color: var(--link-color);
-  padding: 4px 8px; border-radius: 8px; font-size: 12px; font-weight: bold;
+  background: rgba(0, 212, 200, 0.1);
+  color: var(--logo-teal);
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid rgba(0, 212, 200, 0.2);
 }
 
-/* Profiles */
-.profile-tabs { display: flex; overflow-x: auto; gap: 10px; margin-bottom: 20px; padding-bottom: 5px; }
-.tab-btn {
-  background: var(--secondary-bg); color: var(--text-color);
-  border: none; padding: 8px 16px; border-radius: 20px;
-  font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;
-}
-.tab-btn.active { background: var(--primary-btn); color: var(--primary-btn-text); }
-
-/* Grids */
-.baqala-grid, .inventory-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-.baqala-card, .item-card { cursor: pointer; display: flex; flex-direction: column; justify-content: space-between; }
-.item-card { position: relative; }
-.item-card h4 { margin-bottom: 10px; color: var(--text-color); }
-.cash-price { text-decoration: line-through; color: var(--hint-color); font-size: 12px; }
-.crypto-price { font-weight: bold; color: var(--link-color); font-size: 16px; }
-.discount-tag {
-  position: absolute; top: 0; right: 0;
-  background: #f59e0b; color: white; padding: 4px 8px;
-  font-size: 12px; border-bottom-left-radius: 10px; font-weight: bold;
-}
-
-.login-container { height: 80vh; justify-content: center; }
-.mt-15 { margin-top: 15px; }
-.mb-15 { margin-bottom: 15px; }
-/* --- NEW FEATURE STYLES --- */
-
+/* Floating Cart Animation */
 .floating-cart {
-  position: sticky;
-  bottom: 20px;
-  border: 2px solid var(--primary-btn);
-  box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.4);
-  animation: slideUp 0.3s ease-out forwards;
-  z-index: 100;
+  position: fixed;
+  bottom: 90px;
+  left: 20px;
+  right: 20px;
+  z-index: 999;
+  background: var(--lux-card);
+  border: 1px solid var(--lux-border);
+  box-shadow: 0 15px 35px -10px rgba(0, 212, 200, 0.4);
+  animation: slideUpCart 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-@keyframes slideUp {
-  from { transform: translateY(50px); opacity: 0; }
+@keyframes slideUpCart {
+  from { transform: translateY(100px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
 
-.store-header {
-  margin-bottom: 20px;
-  text-align: center;
-  border: none !important;
+/* Bottom Navigation */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(15, 23, 42, 0.85);
+  border-top: 1px solid rgba(255,255,255,0.05);
+  display: flex;
+  justify-content: space-around;
+  padding: 12px 0 24px;
+  z-index: 1000;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
-/* Ensure inputs are visible in dark mode */
-input {
-  color: var(--text-color) !important;
-  background-color: var(--bg-color) !important;
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: var(--lux-hint);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 20px;
+  border-radius: 16px;
+  transition: all 0.2s ease;
+  cursor: pointer;
 }
-input::placeholder {
-  color: var(--hint-color);
-  opacity: 0.7;
+
+.nav-item.active {
+  color: var(--logo-teal);
+  background: rgba(0, 212, 200, 0.1);
+}
+
+.nav-item span {
+  font-size: 20px;
+  margin-bottom: 4px;
 }
