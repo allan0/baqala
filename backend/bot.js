@@ -22,24 +22,22 @@ const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // ==========================================
-// BETTER ENVIRONMENT CHECK
+// BETTER ENVIRONMENT CHECK FOR RENDER
 // ==========================================
-console.log("🚀 Starting Baqala Backend...");
+console.log("🚀 Starting Baqala Backend on Render...");
 
-if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
-  console.error("❌ CRITICAL ERROR: Supabase credentials are missing!");
-  console.error("Please make sure the following environment variables are set on Render:");
-  console.error("   - SUPABASE_URL");
-  console.error("   - SUPABASE_ANON_KEY");
-  console.error("   - TELEGRAM_BOT_TOKEN");
-  console.error("   - OPENAI_API_KEY");
-  console.error("   - MINI_APP_URL");
-  process.exit(1);
+const requiredEnv = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'TELEGRAM_BOT_TOKEN'];
+
+for (const key of requiredEnv) {
+  if (!process.env[key]) {
+    console.error(`❌ MISSING ENVIRONMENT VARIABLE: ${key}`);
+    console.error("Please add it in Render Dashboard → Environment tab");
+    process.exit(1);
+  }
 }
 
-console.log("✅ Supabase credentials loaded successfully");
-console.log("✅ TELEGRAM_BOT_TOKEN loaded");
-
+console.log("✅ All required environment variables are loaded");
+console.log(`SUPABASE_URL: ${process.env.SUPABASE_URL ? "✓ Set" : "✗ Missing"}`);
 // ==========================================
 // SYSTEM PROMPT FOR AI ORDER EXTRACTION
 // ==========================================

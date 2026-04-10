@@ -7,18 +7,18 @@ import TelegramLogin from './components/TelegramLogin';
 import VendorDashboard from './components/VendorDashboard';
 import CustomerDashboard from './components/CustomerDashboard';
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000"; // Change to your backend URL later
 const WebApp = window.Telegram?.WebApp;
 
 function App() {
   const [user, setUser] = useState(null);
   const [isGuest, setIsGuest] = useState(false);
-  const [role, setRole] = useState(null); // 'customer' | 'vendor'
+  const [role, setRole] = useState(null);
   const [currentScreen, setCurrentScreen] = useState('home');
   const [location, setLocation] = useState(null);
   const [walletAddress, setWalletAddress] = useState(null);
 
-  // Default profiles state (this was the main cause of the crash)
+  // Profiles state (shared with CustomerDashboard)
   const [profiles, setProfiles] = useState({
     main: { name: 'Main', debt: 0, unpaidItems: [] }
   });
@@ -97,7 +97,7 @@ function App() {
             src="/baqalaslogo.png" 
             alt="Baqalas" 
             style={{ height: '42px', width: 'auto' }} 
-            onError={(e) => { e.target.style.display = 'none'; }}
+            onError={(e) => e.target.style.display = 'none'}
           />
           <div style={{ textAlign: 'center', flex: 1 }}>
             <h2 style={{ fontSize: '19px', fontWeight: 700, margin: 0 }}>
@@ -115,7 +115,7 @@ function App() {
     );
   };
 
-  // Login / Guest Screen
+  // Login Screen
   if (!user && !isGuest) {
     return (
       <div className="app-container login-container">
@@ -131,7 +131,7 @@ function App() {
     );
   }
 
-  // Role Selection Screen
+  // Role Selection
   if (!role) {
     return (
       <div className="app-container login-container">
@@ -168,7 +168,7 @@ function App() {
         />
       )}
 
-      {/* Bottom Navigation - only for customers */}
+      {/* Bottom Navigation */}
       {role === 'customer' && (
         <div className="bottom-nav">
           {[
