@@ -23,3 +23,11 @@ backend/database.json
 project_code.txt
 backend/.env
 *.env
+
+# Secrets and large dump files
+.env
+.env.local
+backend/.env
+frontend/.env
+*.env
+project_code.txt
