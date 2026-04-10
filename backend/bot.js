@@ -1,8 +1,32 @@
 // ================================================
-// backend/bot.js - MAIN ENTRY POINT (Supabase Version)
+// backend/bot.js - MAIN ENTRY POINT (Supabase + Render Optimized)
 // ================================================
 
 require('dotenv').config();
+
+console.log("🚀 Starting Baqala Backend...");
+
+// === ROBUST ENVIRONMENT VARIABLE CHECK FOR RENDER ===
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const MINI_APP_URL = process.env.MINI_APP_URL || "https://baqala.vercel.app";
+
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  console.error("❌ CRITICAL: Supabase credentials missing!");
+  console.error("Make sure these are added in Render Dashboard → Environment:");
+  console.error("   SUPABASE_URL");
+  console.error("   SUPABASE_ANON_KEY");
+  console.error("Current status:");
+  console.error("SUPABASE_URL:", SUPABASE_URL ? "✅ Set" : "❌ MISSING");
+  console.error("SUPABASE_ANON_KEY:", SUPABASE_ANON_KEY ? "✅ Set" : "❌ MISSING");
+  process.exit(1);
+}
+
+console.log("✅ Supabase credentials loaded");
+console.log("✅ Telegram Bot Token loaded");
+
 const { Telegraf, Markup } = require('telegraf');
 const OpenAI = require('openai');
 const express = require('express');
@@ -15,35 +39,18 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Mount all API routes under /api
+// Mount routes
 app.use('/api', routes);
 
-const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
+const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
 // ==========================================
-// BETTER ENVIRONMENT CHECK FOR RENDER
-// ==========================================
-console.log("🚀 Starting Baqala Backend on Render...");
-
-const requiredEnv = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'TELEGRAM_BOT_TOKEN'];
-
-for (const key of requiredEnv) {
-  if (!process.env[key]) {
-    console.error(`❌ MISSING ENVIRONMENT VARIABLE: ${key}`);
-    console.error("Please add it in Render Dashboard → Environment tab");
-    process.exit(1);
-  }
-}
-
-console.log("✅ All required environment variables are loaded");
-console.log(`SUPABASE_URL: ${process.env.SUPABASE_URL ? "✓ Set" : "✗ Missing"}`);
-// ==========================================
-// SYSTEM PROMPT FOR AI ORDER EXTRACTION
+// SYSTEM PROMPT
 // ==========================================
 const SYSTEM_PROMPT = `
 You are an AI order extractor for a UAE Baqala. 
-Extract intent, items, and the target profile/person if mentioned.
+Extract intent, items, and the target profile if mentioned.
 Format strictly as JSON: 
 { 
   "intent": "purchase", 
@@ -53,7 +60,6 @@ Format strictly as JSON:
 }
 Assume reasonable AED prices.
 `;
-
 // ==========================================
 // HELPER FUNCTIONS
 // ==========================================
