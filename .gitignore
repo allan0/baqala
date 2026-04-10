@@ -20,3 +20,6 @@ backend/database.json
 # OS Files
 .DS_Store
 *.log
+project_code.txt
+backend/.env
+*.env
