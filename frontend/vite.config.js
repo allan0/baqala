@@ -8,8 +8,16 @@ export default defineConfig({
     sourcemap: false,
     minify: 'esbuild',
     chunkSizeWarningLimit: 1600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+        },
+      },
+    },
   },
   resolve: {
-    extensions: ['.js', '.jsx', '.json']
-  }
+    extensions: ['.js', '.jsx', '.json'],
+  },
+  base: './',   // Important for Telegram Mini App
 })

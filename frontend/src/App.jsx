@@ -1,13 +1,11 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ethers } from 'ethers';
-import axios from 'axios';
 import { Bell, ScanLine, LayoutDashboard, ShoppingBag, User as UserIcon, Wallet } from 'lucide-react';
 
 // Styles
 import './App.css';
 
-// Components (We will refactor these next to match the luxury UI)
+// Components
 import CustomerDashboard from './components/CustomerDashboard';
 import VendorDashboard from './components/VendorDashboard';
 
@@ -20,10 +18,9 @@ const App = () => {
   const [showIntro, setShowIntro] = useState(true);
   const [role, setRole] = useState(localStorage.getItem('baqala_role') || 'customer');
   const [activeTab, setActiveTab] = useState('home');
-  const [location, setLocation] = useState(null);
-  const [walletAddress, setWalletAddress] = useState(null);
+  const [location, setLocation] = useState(null);   // Location is now optional / on-demand
 
-  // --- HAPTICS & UTILS ---
+  // --- HAPTICS ---
   const triggerHaptic = (style = 'medium') => {
     if (WebApp?.HapticFeedback) {
       if (style === 'heavy') WebApp.HapticFeedback.impactOccurred('heavy');
@@ -44,21 +41,15 @@ const App = () => {
     if (WebApp) {
       WebApp.ready();
       WebApp.expand();
-      WebApp.setHeaderColor('#070B14'); // Matches Lux Dark
+      WebApp.setHeaderColor('#070B14');
+
       if (WebApp.initDataUnsafe?.user) {
         setUser(WebApp.initDataUnsafe.user);
       }
     }
 
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        () => console.warn("Location denied")
-      );
-    }
-
     // Cinematic Intro Timeout
-    const timer = setTimeout(() => setShowIntro(false), 2800);
+    const timer = setTimeout(() => setShowIntro(false), 2600);
     return () => clearTimeout(timer);
   }, []);
 
@@ -68,14 +59,18 @@ const App = () => {
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         <motion.img 
           src="/baqalaslogo.png" 
-          alt="Logo" 
+          alt="Baqala Logo" 
           className="mini-logo"
           whileTap={{ scale: 0.85, rotate: -10 }}
           onClick={toggleRole}
         />
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <span className="mode-label">{role === 'customer' ? 'Customer' : 'Owner Mode'}</span>
-          <span className="user-name">{user?.first_name || 'Guest'}</span>
+          <span className="mode-label" style={{ fontSize: '11px', color: 'var(--logo-orange)', fontWeight: 700 }}>
+            {role === 'customer' ? 'CUSTOMER' : 'OWNER MODE'}
+          </span>
+          <span className="user-name" style={{ fontSize: '16px', fontWeight: 800 }}>
+            {user?.first_name || 'Guest'}
+          </span>
         </div>
       </div>
       
@@ -110,14 +105,14 @@ const App = () => {
     </div>
   );
 
-  // --- MAIN VIEW ---
+  // --- MAIN RENDER ---
   return (
     <div className="app-root">
       <AnimatePresence>
         {showIntro && (
           <motion.div 
             className="welcome-screen"
-            exit={{ opacity: 0, scale: 1.1, filter: "blur(10px)" }}
+            exit={{ opacity: 0, scale: 1.08, filter: "blur(8px)" }}
             transition={{ duration: 0.8 }}
           >
             <motion.img 
@@ -125,16 +120,19 @@ const App = () => {
               className="logo-intro"
               initial={{ scale: 5, opacity: 0, filter: "blur(20px)" }}
               animate={{ scale: 1, opacity: 1, filter: "blur(0px)" }}
-              transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
+              transition={{ duration: 1.3, ease: [0.16, 1, 0.3, 1] }}
             />
             <motion.h1 
               className="welcome-title"
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.8 }}
+              transition={{ delay: 0.7 }}
             >
               Baqalas
             </motion.h1>
+            <p style={{ color: 'var(--lux-hint)', marginTop: '12px', fontSize: '14px' }}>
+              The Digital Hisaab Network
+            </p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -154,12 +152,10 @@ const App = () => {
                 location={location} 
                 activeTab={activeTab} 
                 setActiveTab={setActiveTab}
+                setLocation={setLocation}   // Pass setter so location can be requested on demand
               />
             ) : (
-              <VendorDashboard 
-                user={user} 
-                location={location} 
-              />
+              <VendorDashboard user={user} />
             )}
           </div>
 
