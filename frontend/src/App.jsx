@@ -1,195 +1,173 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { ethers } from 'ethers';
 import axios from 'axios';
+import { Bell, ScanLine, LayoutDashboard, ShoppingBag, User as UserIcon, Wallet } from 'lucide-react';
+
+// Styles
 import './App.css';
 
-import TelegramLogin from './components/TelegramLogin';
-import VendorDashboard from './components/VendorDashboard';
+// Components (We will refactor these next to match the luxury UI)
 import CustomerDashboard from './components/CustomerDashboard';
+import VendorDashboard from './components/VendorDashboard';
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000"; // Change to your backend URL later
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 const WebApp = window.Telegram?.WebApp;
 
-function App() {
+const App = () => {
+  // --- STATE ---
   const [user, setUser] = useState(null);
-  const [isGuest, setIsGuest] = useState(false);
-  const [role, setRole] = useState(null);
-  const [currentScreen, setCurrentScreen] = useState('home');
+  const [showIntro, setShowIntro] = useState(true);
+  const [role, setRole] = useState(localStorage.getItem('baqala_role') || 'customer');
+  const [activeTab, setActiveTab] = useState('home');
   const [location, setLocation] = useState(null);
   const [walletAddress, setWalletAddress] = useState(null);
 
-  // Profiles state (shared with CustomerDashboard)
-  const [profiles, setProfiles] = useState({
-    main: { name: 'Main', debt: 0, unpaidItems: [] }
-  });
-
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 18) return 'Good afternoon';
-    return 'Good evening';
-  };
-
-  const fetchUserData = (telegramUser) => {
-    setUser(telegramUser);
-    setIsGuest(false);
-  };
-
-  const connectWallet = async () => {
-    if (window.ethereum) {
-      try {
-        const provider = new ethers.BrowserProvider(window.ethereum);
-        const signer = await provider.getSigner();
-        setWalletAddress(await signer.getAddress());
-      } catch (error) {
-        console.error("Wallet connection failed:", error);
-      }
-    } else {
-      alert("No Web3 wallet detected. Please install MetaMask.");
+  // --- HAPTICS & UTILS ---
+  const triggerHaptic = (style = 'medium') => {
+    if (WebApp?.HapticFeedback) {
+      if (style === 'heavy') WebApp.HapticFeedback.impactOccurred('heavy');
+      else if (style === 'light') WebApp.HapticFeedback.impactOccurred('light');
+      else WebApp.HapticFeedback.impactOccurred('medium');
     }
   };
 
-  // Initialize Telegram WebApp + Geolocation
+  const toggleRole = () => {
+    triggerHaptic('heavy');
+    const newRole = role === 'customer' ? 'vendor' : 'customer';
+    setRole(newRole);
+    localStorage.setItem('baqala_role', newRole);
+  };
+
+  // --- INITIALIZATION ---
   useEffect(() => {
-    if (WebApp?.initDataUnsafe?.user) {
+    if (WebApp) {
       WebApp.ready();
       WebApp.expand();
-      if (WebApp.isVersionAtLeast && WebApp.isVersionAtLeast('6.1')) {
-        WebApp.setHeaderColor('#0F172A');
+      WebApp.setHeaderColor('#070B14'); // Matches Lux Dark
+      if (WebApp.initDataUnsafe?.user) {
+        setUser(WebApp.initDataUnsafe.user);
       }
-      fetchUserData(WebApp.initDataUnsafe.user);
     }
 
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        () => console.warn("Location access denied")
+        () => console.warn("Location denied")
       );
     }
+
+    // Cinematic Intro Timeout
+    const timer = setTimeout(() => setShowIntro(false), 2800);
+    return () => clearTimeout(timer);
   }, []);
 
-  // Telegram Back Button
-  useEffect(() => {
-    if (!WebApp?.BackButton) return;
-
-    const handleBack = () => {
-      if (role === 'customer' && currentScreen !== 'home') {
-        setCurrentScreen('home');
-      } else if (role) {
-        setRole(null);
-      } else {
-        WebApp.close();
-      }
-    };
-
-    WebApp.BackButton.show();
-    WebApp.BackButton.onClick(handleBack);
-
-    return () => WebApp.BackButton.offClick(handleBack);
-  }, [role, currentScreen]);
-
-  const renderHeader = () => {
-    const name = user ? user.first_name : 'Guest';
-    return (
-      <div className="app-header">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 20px' }}>
-          <img 
-            src="/baqalaslogo.png" 
-            alt="Baqalas" 
-            style={{ height: '42px', width: 'auto' }} 
-            onError={(e) => e.target.style.display = 'none'}
-          />
-          <div style={{ textAlign: 'center', flex: 1 }}>
-            <h2 style={{ fontSize: '19px', fontWeight: 700, margin: 0 }}>
-              {getGreeting()}, {name}!
-            </h2>
-          </div>
-          <button
-            onClick={() => WebApp?.showAlert ? WebApp.showAlert('No new notifications yet!') : alert('No new notifications')}
-            style={{ background: 'none', border: 'none', fontSize: '26px', padding: '8px' }}
-          >
-            🛎️
-          </button>
-        </div>
-      </div>
-    );
-  };
-
-  // Login Screen
-  if (!user && !isGuest) {
-    return (
-      <div className="app-container login-container">
-        {renderHeader()}
-        <h1 style={{ textAlign: 'center', marginBottom: '20px' }}>🏪 Baqala Network</h1>
-        <button className="btn-primary" onClick={() => setIsGuest(true)} style={{ marginBottom: '20px', width: '100%' }}>
-          👀 Explore as Guest
-        </button>
-        <div className="card">
-          <TelegramLogin botName="BaqalaTestBot" onAuth={fetchUserData} />
-        </div>
-      </div>
-    );
-  }
-
-  // Role Selection
-  if (!role) {
-    return (
-      <div className="app-container login-container">
-        {renderHeader()}
-        <h2 style={{ textAlign: 'center', margin: '20px 0 30px' }}>How are you using Baqala Network today?</h2>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', maxWidth: '300px', margin: '0 auto' }}>
-          <button className="btn-primary" onClick={() => setRole('customer')}>
-            🛍️ I am a Customer
-          </button>
-          <button className="btn-secondary" onClick={() => setRole('vendor')}>
-            🏪 I own a Baqala
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="app-container" style={{ paddingBottom: role === 'customer' ? '100px' : '30px' }}>
-      {renderHeader()}
-
-      {role === 'vendor' && <VendorDashboard user={user} location={location} />}
-
-      {role === 'customer' && (
-        <CustomerDashboard
-          user={user}
-          location={location}
-          walletAddress={walletAddress}
-          connectWallet={connectWallet}
-          profiles={profiles}
-          setProfiles={setProfiles}
-          currentScreen={currentScreen}
-          setCurrentScreen={setCurrentScreen}
+  // --- RENDER HELPERS ---
+  const renderTopBar = () => (
+    <div className="top-bar">
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <motion.img 
+          src="/baqalaslogo.png" 
+          alt="Logo" 
+          className="mini-logo"
+          whileTap={{ scale: 0.85, rotate: -10 }}
+          onClick={toggleRole}
         />
-      )}
-
-      {/* Bottom Navigation */}
-      {role === 'customer' && (
-        <div className="bottom-nav">
-          {[
-            { id: 'home', icon: '🏠', label: 'Home' },
-            { id: 'hisaab', icon: '📒', label: 'Hisaab' },
-            { id: 'stores', icon: '🛒', label: 'Stores' },
-            { id: 'profile', icon: '👤', label: 'Profile' },
-          ].map((item) => (
-            <div
-              key={item.id}
-              className={`nav-item ${currentScreen === item.id ? 'active' : ''}`}
-              onClick={() => setCurrentScreen(item.id)}
-            >
-              <span>{item.icon}</span>
-              <div>{item.label}</div>
-            </div>
-          ))}
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <span className="mode-label">{role === 'customer' ? 'Customer' : 'Owner Mode'}</span>
+          <span className="user-name">{user?.first_name || 'Guest'}</span>
         </div>
+      </div>
+      
+      <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+        {role === 'customer' && (
+          <motion.div whileTap={{ scale: 0.9 }} onClick={() => setActiveTab('profile')}>
+            <Wallet size={22} color="var(--logo-teal)" />
+          </motion.div>
+        )}
+        <Bell size={22} color="var(--lux-hint)" />
+      </div>
+    </div>
+  );
+
+  const renderBottomNav = () => (
+    <div className="bottom-nav">
+      {[
+        { id: 'home', icon: <LayoutDashboard size={24} />, label: 'Home' },
+        { id: 'hisaab', icon: <ScanLine size={24} />, label: 'Hisaab' },
+        { id: 'stores', icon: <ShoppingBag size={24} />, label: 'Stores' },
+        { id: 'profile', icon: <UserIcon size={24} />, label: 'Profile' },
+      ].map((tab) => (
+        <div 
+          key={tab.id} 
+          className={`nav-item ${activeTab === tab.id ? 'active' : ''}`}
+          onClick={() => { triggerHaptic('light'); setActiveTab(tab.id); }}
+        >
+          {tab.icon}
+          <span>{tab.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+
+  // --- MAIN VIEW ---
+  return (
+    <div className="app-root">
+      <AnimatePresence>
+        {showIntro && (
+          <motion.div 
+            className="welcome-screen"
+            exit={{ opacity: 0, scale: 1.1, filter: "blur(10px)" }}
+            transition={{ duration: 0.8 }}
+          >
+            <motion.img 
+              src="/baqalaslogo.png" 
+              className="logo-intro"
+              initial={{ scale: 5, opacity: 0, filter: "blur(20px)" }}
+              animate={{ scale: 1, opacity: 1, filter: "blur(0px)" }}
+              transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
+            />
+            <motion.h1 
+              className="welcome-title"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.8 }}
+            >
+              Baqalas
+            </motion.h1>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {!showIntro && (
+        <motion.div 
+          className="app-container"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+        >
+          {renderTopBar()}
+
+          <div className="content-area">
+            {role === 'customer' ? (
+              <CustomerDashboard 
+                user={user} 
+                location={location} 
+                activeTab={activeTab} 
+                setActiveTab={setActiveTab}
+              />
+            ) : (
+              <VendorDashboard 
+                user={user} 
+                location={location} 
+              />
+            )}
+          </div>
+
+          {role === 'customer' && renderBottomNav()}
+        </motion.div>
       )}
     </div>
   );
-}
+};
 
 export default App;

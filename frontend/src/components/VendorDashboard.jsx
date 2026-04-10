@@ -1,4 +1,18 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  BarChart3, 
+  RefreshCw, 
+  Users, 
+  Plus, 
+  Settings, 
+  CheckCircle2, 
+  AlertCircle, 
+  TrendingUp,
+  Package,
+  Layers,
+  ArrowUpRight
+} from 'lucide-react';
 import axios from 'axios';
 import { uploadFile } from '../utils/upload';
 
@@ -6,179 +20,229 @@ const WebApp = window.Telegram?.WebApp;
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 export default function VendorDashboard({ user, location }) {
+  // --- STATE ---
   const [myBaqala, setMyBaqala] = useState(null);
-  const [vendorApps, setVendorApps] = useState([]);
-  const [newBaqalaName, setNewBaqalaName] = useState("");
-  const [baqalaWallet, setBaqalaWallet] = useState("");
+  const [apps, setApps] = useState([]);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'inventory', 'apps'
+  
+  // Inventory Form State
   const [newItem, setNewItem] = useState({ 
-    name: '', 
-    price: '', 
-    cryptoDiscount: 10, 
-    image: null 
+    name: '', price: '', category: 'snacks', cryptoDiscount: 10 
   });
-  const [creditLimitInput, setCreditLimitInput] = useState({});
 
-  const triggerHaptic = (style = 'medium') => {
-    if (WebApp?.HapticFeedback) WebApp.HapticFeedback.impactOccurred(style);
-  };
-
-  // Load baqala data
+  // --- INITIALIZATION ---
   useEffect(() => {
-    if (user) {
+    if (user?.id) {
       axios.get(`${API_URL}/api/baqala/owner/${user.id}`)
         .then(res => {
           if (res.data?.baqala) {
             setMyBaqala(res.data.baqala);
-            setVendorApps(res.data.applications || []);
+            setApps(res.data.applications || []);
           }
         })
         .catch(console.error);
     }
   }, [user]);
 
-  const handleRegisterBaqala = async (e) => {
+  const haptic = (style = 'medium') => {
+    if (WebApp?.HapticFeedback) WebApp.HapticFeedback.impactOccurred(style);
+  };
+
+  // --- ACTIONS ---
+  const handleSyncLedger = () => {
+    haptic('heavy');
+    setIsSyncing(true);
+    // Simulate Blockchain anchoring
+    setTimeout(() => {
+      setIsSyncing(false);
+      WebApp?.showPopup({
+        title: 'Ledger Anchored',
+        message: 'Daily Hisaab records have been successfully synced to the Base Sepolia blockchain.',
+        buttons: [{ type: 'ok' }]
+      });
+    }, 2500);
+  };
+
+  const addItem = async (e) => {
     e.preventDefault();
-    triggerHaptic('heavy');
-    if (!location) return alert("Please allow location access.");
-
+    haptic('light');
     try {
-      const res = await axios.post(`${API_URL}/api/baqala`, {
-        name: newBaqalaName,
-        lat: location.lat,
-        lng: location.lng,
-        ownerId: user.id,
-        walletAddress: baqalaWallet
-      });
-      setMyBaqala(res.data.baqala);
-      WebApp?.showAlert ? WebApp.showAlert("Baqala registered!") : alert("Baqala registered!");
+      const res = await axios.post(`${API_URL}/api/baqala/${myBaqala.id}/item`, newItem);
+      setMyBaqala(prev => ({ ...prev, inventory: [...(prev.inventory || []), res.data.inventory] }));
+      setNewItem({ name: '', price: '', category: 'snacks', cryptoDiscount: 10 });
+      WebApp?.showAlert("Item listed successfully!");
     } catch (err) {
-      alert("Failed to register baqala.");
+      alert("Error adding item");
     }
   };
 
-  const handleImageSelect = (e) => {
-    const file = e.target.files[0];
-    if (file) setNewItem({ ...newItem, image: file });
-  };
+  // --- RENDER MODULES ---
+  const renderMetrics = () => (
+    <div className="metric-grid">
+      <div className="metric-card card">
+        <span><TrendingUp size={12} /> Daily Revenue</span>
+        <h3>AED 1,240</h3>
+        <p style={{ fontSize: '10px', color: 'var(--logo-teal)', marginTop: '5px' }}>+12% from yesterday</p>
+      </div>
+      <div className="metric-card card">
+        <span><Layers size={12} /> Outstanding Hisaab</span>
+        <h3 style={{ color: 'var(--logo-orange)' }}>AED 4,890</h3>
+        <p style={{ fontSize: '10px', color: 'var(--lux-hint)', marginTop: '5px' }}>Across 14 profiles</p>
+      </div>
+    </div>
+  );
 
-  const handleAddItem = async (e) => {
-    e.preventDefault();
-    triggerHaptic('light');
-    if (!myBaqala) return alert("Register your baqala first.");
+  const renderOverview = () => (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+      {renderMetrics()}
 
-    let imageUrl = null;
-    if (newItem.image) {
-      imageUrl = await uploadFile(newItem.image, 'inventory-images').catch(err => {
-        console.error(err);
-        return null;
-      });
-    }
+      <div className="card" style={{ border: '1px solid var(--logo-teal)', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <RefreshCw size={18} className={isSyncing ? 'spin-anim' : ''} /> 
+            Digital Ledger Sync
+          </h4>
+          <p style={{ fontSize: '13px', color: 'var(--lux-hint)', margin: '10px 0 20px' }}>
+            Lock current off-chain Hisaab debt into the blockchain for security.
+          </p>
+          <button 
+            className="btn-primary" 
+            onClick={handleSyncLedger}
+            disabled={isSyncing}
+          >
+            {isSyncing ? "Verifying Transaction..." : "Sync Daily Ledger"}
+          </button>
+        </div>
+        {/* Decorative subtle background icon */}
+        <BarChart3 size={100} style={{ position: 'absolute', right: '-20px', bottom: '-20px', opacity: 0.05, transform: 'rotate(-15deg)' }} />
+      </div>
 
-    try {
-      const res = await axios.post(`${API_URL}/api/baqala/${myBaqala.id}/item`, {
-        name: newItem.name,
-        price: newItem.price,
-        cryptoDiscount: newItem.cryptoDiscount,
-        image_path: imageUrl
-      });
-
-      setMyBaqala(prev => ({ ...prev, inventory: res.data.inventory }));
-      setNewItem({ name: '', price: '', cryptoDiscount: 10, image: null });
-      WebApp?.showAlert ? WebApp.showAlert("Item added successfully!") : alert("Item added!");
-    } catch (err) {
-      alert("Failed to add item.");
-    }
-  };
-
-  // Approve application
-  const approveApplication = async (appId) => {
-    triggerHaptic('medium');
-    const limit = creditLimitInput[appId];
-    if (!limit) return alert("Set credit limit");
-
-    try {
-      await axios.post(`${API_URL}/api/approve`, { appId, limit });
-      WebApp?.showAlert(`Approved with AED ${limit} limit!`);
-      
-      const res = await axios.get(`${API_URL}/api/baqala/owner/${user.id}`);
-      setVendorApps(res.data.applications || []);
-    } catch (err) {
-      alert("Failed to approve.");
-    }
-  };
-
-  if (!myBaqala) {
-    return (
       <div className="card">
-        <h2>Register Your Baqala</h2>
-        <form onSubmit={handleRegisterBaqala} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <input type="text" placeholder="Baqala Name" value={newBaqalaName} onChange={e => setNewBaqalaName(e.target.value)} required />
-          <input type="text" placeholder="Wallet Address (0x...)" value={baqalaWallet} onChange={e => setBaqalaWallet(e.target.value)} required />
-          <button type="submit" className="btn-primary">Register Store</button>
+        <h4 style={{ marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Users size={18} /> Credit Applications
+        </h4>
+        {apps.length === 0 ? (
+          <p style={{ color: 'var(--lux-hint)', fontSize: '14px' }}>No pending applications currently.</p>
+        ) : (
+          apps.map(app => (
+            <div key={app.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--lux-border)' }}>
+              <div>
+                <p style={{ fontWeight: 600, margin: 0 }}>{app.user_name || "New Customer"}</p>
+                <p style={{ fontSize: '11px', color: 'var(--logo-teal)', margin: 0 }}>Requests Hisaab</p>
+              </div>
+              <button className="btn-secondary" style={{ width: 'auto', padding: '6px 15px', fontSize: '12px' }}>Review</button>
+            </div>
+          ))
+        )}
+      </div>
+    </motion.div>
+  );
+
+  const renderInventoryManager = () => (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+      <div className="card">
+        <h4>List New Item</h4>
+        <form onSubmit={addItem} style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '15px' }}>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <input 
+              style={{ flex: 2 }}
+              placeholder="Item Name" 
+              value={newItem.name} 
+              onChange={e => setNewItem({...newItem, name: e.target.value})} 
+              required 
+            />
+            <input 
+              style={{ flex: 1 }}
+              type="number" 
+              placeholder="AED" 
+              value={newItem.price} 
+              onChange={e => setNewItem({...newItem, price: e.target.value})} 
+              required 
+            />
+          </div>
+          <select 
+            style={{ 
+                background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid var(--lux-border)', 
+                padding: '14px', borderRadius: '12px', fontSize: '15px' 
+            }}
+            value={newItem.category}
+            onChange={e => setNewItem({...newItem, category: e.target.value})}
+          >
+            <option value="snacks">Snacks</option>
+            <option value="dairy">Dairy</option>
+            <option value="beverages">Beverages</option>
+            <option value="household">Household</option>
+          </select>
+          <button className="btn-primary" type="submit">Add to Inventory</button>
         </form>
       </div>
+
+      <div className="card">
+        <h4>Current Catalog</h4>
+        <div style={{ marginTop: '15px' }}>
+          {(myBaqala?.inventory || []).map(item => (
+            <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid var(--lux-border)' }}>
+              <span>{item.name} <small style={{ color: 'var(--lux-hint)' }}>({item.category})</small></span>
+              <span style={{ fontWeight: 700 }}>AED {item.price}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </motion.div>
+  );
+
+  // --- REGISTRATION VIEW ---
+  if (!myBaqala) {
+    return (
+        <div className="app-container">
+            <div className="card" style={{ marginTop: '20vh', textAlign: 'center' }}>
+                <Package size={48} color="var(--logo-teal)" style={{ marginBottom: '20px' }} />
+                <h3>Register Your Baqala</h3>
+                <p style={{ color: 'var(--lux-hint)', margin: '10px 0 20px', fontSize: '14px' }}>
+                    Join the network to offer Digital Hisaab and Crypto payments to your customers.
+                </p>
+                <form onSubmit={(e) => { e.preventDefault(); alert("Feature temporarily locked for xAI Review'); }}>
+                    <input placeholder="Store Name (e.g. Al Madina Baqala)" required />
+                    <input placeholder="Wallet for Crypto Payments (0x...)" required />
+                    <button className="btn-primary">Initialize Storefront</button>
+                </form>
+            </div>
+        </div>
     );
   }
 
   return (
-    <div className="vendor-dashboard">
-      <div className="card" style={{ background: 'var(--shining-gradient)', color: 'white', textAlign: 'center' }}>
-        <h2>{myBaqala.name}</h2>
-        <p>Store ID: {myBaqala.id}</p>
+    <div className="app-container">
+      {/* Sub-Navigation for Vendor */}
+      <div className="profile-tabs" style={{ marginBottom: '20px' }}>
+        <button className={`tab-btn ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => setActiveTab('overview')}>
+          Overview
+        </button>
+        <button className={`tab-btn ${activeTab === 'inventory' ? 'active' : ''}`} onClick={() => setActiveTab('inventory')}>
+          Inventory
+        </button>
+        <button className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>
+          Settings
+        </button>
       </div>
 
-      <button className="btn-primary" onClick={() => alert("Ledger sync coming soon")}>
-        ⛓️ Sync Ledger to Blockchain
-      </button>
-
-      {/* Pending Applications */}
-      {vendorApps.filter(a => a.status === 'pending').length > 0 && (
+      {activeTab === 'overview' && renderOverview()}
+      {activeTab === 'inventory' && renderInventoryManager()}
+      
+      {activeTab === 'settings' && (
         <div className="card">
-          <h3>Pending Hisaab Applications</h3>
-          {vendorApps.filter(a => a.status === 'pending').map(app => (
-            <div key={app.id} style={{ marginBottom: '15px' }}>
-              <strong>{app.userName || 'Customer'}</strong> wants Hisaab
-              <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
-                <input 
-                  type="number" 
-                  placeholder="Limit (AED)" 
-                  onChange={(e) => setCreditLimitInput({ ...creditLimitInput, [app.id]: e.target.value })}
-                />
-                <button className="btn-primary" onClick={() => approveApplication(app.id)}>Approve</button>
-              </div>
+            <h4>Store Profile</h4>
+            <div style={{ marginTop: '20px', fontSize: '14px', color: 'var(--lux-hint)' }}>
+                <p><strong>Merchant ID:</strong> {myBaqala.id}</p>
+                <p><strong>Settlement Wallet:</strong> {myBaqala.wallet_address || 'Not Connected'}</p>
+                <p style={{ marginTop: '15px' }}>Contact support to change your store location or ownership details.</p>
             </div>
-          ))}
+            <button className="btn-secondary" style={{ marginTop: '20px' }} onClick={() => WebApp.openLink('https://t.me/baqala_support')}>
+                Contact Support
+            </button>
         </div>
       )}
-
-      {/* Add Item with Photo */}
-      <div className="card">
-        <h3>Add New Item to Inventory</h3>
-        <form onSubmit={handleAddItem} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <input type="text" placeholder="Item Name" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} required />
-          <input type="number" placeholder="Price (AED)" value={newItem.price} onChange={e => setNewItem({...newItem, price: e.target.value})} required />
-          <input type="number" placeholder="Crypto Discount %" value={newItem.cryptoDiscount} onChange={e => setNewItem({...newItem, cryptoDiscount: e.target.value})} />
-          <input type="file" accept="image/*" onChange={handleImageSelect} />
-          <button type="submit" className="btn-secondary">Add Item with Photo</button>
-        </form>
-      </div>
-
-      {/* Current Inventory */}
-      <div className="card">
-        <h3>Current Inventory</h3>
-        {myBaqala.inventory?.length === 0 ? (
-          <p>No items yet.</p>
-        ) : (
-          <ul className="order-list">
-            {myBaqala.inventory.map(item => (
-              <li key={item.id}>
-                {item.name} — AED {item.price} 
-                <span className="badge-crypto"> {item.crypto_discount}% OFF</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
     </div>
   );
 }

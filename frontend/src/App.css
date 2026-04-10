@@ -1,322 +1,227 @@
-/* ==========================================
-   ./frontend/src/App.css - LUXURY UPGRADE (Final)
-   ========================================== */
+/* ============================================================
+   BAQALA NETWORK v2 - COMPREHENSIVE DESIGN SYSTEM
+   Theme: Luxury UAE Dark / Grainy Glassmorphism
+   ============================================================ */
 
 :root {
-  /* Logo Colors */
+  /* Brand */
   --logo-teal: #00D4C8;
   --logo-orange: #FF6B00;
   --shining-gradient: linear-gradient(90deg, #00D4C8, #FF6B00, #00D4C8);
   
-  /* Luxury Dark Theme */
-  --lux-dark: #0F172A;
-  --lux-card: #1E2937;
-  --lux-border: rgba(0, 212, 200, 0.25);
-  --lux-text: #F1F5F9;
+  /* Palette */
+  --lux-dark: #070B14;        /* Deeper midnight black */
+  --lux-glass: rgba(30, 41, 59, 0.45); /* Frosted glass effect */
+  --lux-border: rgba(255, 255, 255, 0.08); 
+  --lux-text: #F8FAFC;
   --lux-hint: #94A3B8;
   --accent-gold: #FACC15;
 
-  /* Telegram Fallbacks */
-  --bg-color: var(--lux-dark);
-  --text-color: var(--lux-text);
-  --hint-color: var(--lux-hint);
-  --primary-btn: var(--logo-teal);
-  --primary-btn-text: #ffffff;
-  --secondary-bg: #334155;
-  --card-bg: var(--lux-card);
+  /* Native Mobile Colors */
+  --secondary-bg: rgba(255, 255, 255, 0.05);
+  --font-main: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
 }
 
+/* 1. NATIVE CORE RESET & GRAIN */
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--font-main);
   background-color: var(--lux-dark);
   color: var(--lux-text);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  
+  /* THE GRAIN: Luxury noise overlay */
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  background-attachment: fixed;
+  overflow-x: hidden;
 }
 
-/* Container & Utilities */
-.app-container {
-  padding: 20px;
-  padding-bottom: 100px; /* Prevents bottom-nav overlap */
-  max-width: 600px;
-  margin: 0 auto;
+.app-root {
   min-height: 100vh;
-}
-
-.mt-15 { margin-top: 15px; }
-.mb-15 { margin-bottom: 15px; }
-.login-container { display: flex; flex-direction: column; justify-content: center; height: 80vh; }
-
-/* Luxury Header */
-.app-header {
-  text-align: center;
-  padding: 10px 0 25px;
   position: relative;
 }
 
-.app-header h1 {
-  font-size: 28px;
+/* 2. CINEMATIC INTRO STYLES */
+.welcome-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: var(--lux-dark);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 20px;
+}
+
+.logo-intro {
+  width: 140px;
+  height: auto;
+  margin-bottom: 24px;
+}
+
+.welcome-title {
+  font-size: 38px;
   font-weight: 800;
-  letter-spacing: -1px;
+  letter-spacing: -1.5px;
   background: var(--shining-gradient);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  margin-bottom: 8px;
-  cursor: pointer;
-}
-
-.wallet-badge {
-  font-size: 13px;
-  font-weight: 600;
-  background: rgba(255, 107, 0, 0.15);
-  color: var(--logo-orange);
-  padding: 6px 14px;
-  border-radius: 30px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-/* Shining Gradient Button */
-.btn-primary {
-  background: var(--shining-gradient);
-  background-size: 200% 200%;
+  background-size: 200% auto;
   animation: shine 3s linear infinite;
-  color: white;
+}
+
+/* 3. DYNAMIC TOP BAR (Logo Switcher) */
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  position: sticky;
+  top: 0;
+  z-index: 500;
+  background: rgba(7, 11, 20, 0.85);
+  backdrop-filter: blur(10px);
+}
+
+.mini-logo {
+  width: 44px;
+  height: 44px;
+  cursor: pointer;
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.mode-label {
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: -0.3px;
-  border: none;
-  padding: 14px 24px;
-  border-radius: 16px;
+  text-transform: uppercase;
+  color: var(--logo-orange);
+  letter-spacing: 0.5px;
+}
+
+.user-name {
   font-size: 16px;
-  width: 100%;
-  cursor: pointer;
-  transition: transform 0.2s ease, opacity 0.2s ease;
-  box-shadow: 0 8px 25px -5px rgba(0, 212, 200, 0.4);
+  font-weight: 800;
+  color: var(--lux-text);
 }
 
-.btn-primary:active { transform: scale(0.96); }
-.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; animation: none; box-shadow: none; background: var(--secondary-bg); color: var(--lux-hint); }
-
-@keyframes shine {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+/* 4. PREMIUM COMPONENT CARDS */
+.app-container {
+  padding: 15px 20px 120px;
+  max-width: 600px;
+  margin: 0 auto;
 }
 
-.btn-secondary {
-  background: var(--secondary-bg);
-  color: var(--logo-teal);
-  font-weight: 600;
-  border: none;
-  padding: 14px 24px;
-  border-radius: 16px;
-  font-size: 16px;
-  width: 100%;
-  cursor: pointer;
-  transition: transform 0.2s ease;
-}
-.btn-secondary:active { transform: scale(0.96); }
-
-.btn-text {
-  background: none;
-  border: none;
-  color: var(--logo-teal);
-  text-decoration: underline;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-/* Premium Cards */
-.card, .hisaab-card {
-  background: var(--lux-card);
-  border: 1px solid rgba(255,255,255,0.05);
-  border-radius: 20px;
+/* Replaces old .card and .hisaab-card */
+.card, .hisaab-card, .metric-card {
+  background: var(--lux-glass);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid var(--lux-border);
+  border-radius: 26px;
   padding: 20px;
-  margin-bottom: 20px;
-  box-shadow: 0 10px 30px -15px rgba(0, 0, 0, 0.5);
+  margin-bottom: 18px;
+  box-shadow: 0 10px 40px -15px rgba(0, 0, 0, 0.6);
   transition: transform 0.2s ease;
 }
 
 .hisaab-card {
-  border: 1px solid var(--lux-border);
-  box-shadow: 0 10px 30px -10px rgba(0, 212, 200, 0.2);
+  border: 1px solid rgba(0, 212, 200, 0.2);
+  box-shadow: 0 10px 40px -10px rgba(0, 212, 200, 0.15);
 }
-.hisaab-card h2 { font-size: 20px; font-weight: 600; }
 
-/* Price Split */
+/* 5. METRICS & PRICES */
 .price-split {
   display: flex;
   gap: 12px;
-  margin: 20px 0;
+  margin: 18px 0;
 }
 
 .price-box {
   flex: 1;
   background: rgba(255, 255, 255, 0.03);
   padding: 16px;
-  border-radius: 16px;
+  border-radius: 18px;
   text-align: center;
-  border: 1px solid rgba(255,255,255,0.02);
+  border: 1px solid var(--lux-border);
 }
 
-.price-box p { font-size: 13px; color: var(--lux-hint); margin-bottom: 4px; }
-.price-box h3 { font-size: 22px; font-weight: 800; color: var(--lux-text); }
+.price-box p { font-size: 12px; color: var(--lux-hint); margin-bottom: 4px; }
+.price-box h3 { font-size: 22px; font-weight: 800; }
 .price-box.crypto h3 { color: var(--logo-teal); }
 
-/* Forms & Inputs */
-.flex-form { display: flex; gap: 10px; align-items: center; }
-.inventory-form { display: flex; flex-direction: column; gap: 10px; }
-
-input {
-  background: rgba(255,255,255,0.05) !important;
-  border: 1px solid rgba(255,255,255,0.1) !important;
-  color: var(--lux-text) !important;
-  border-radius: 12px;
-  padding: 14px;
-  font-size: 15px;
-  width: 100%;
-  outline: none;
-  transition: all 0.2s ease;
-}
-
-input::placeholder { color: rgba(255,255,255,0.3); }
-input:focus {
-  border-color: var(--logo-teal) !important;
-  background: rgba(0, 212, 200, 0.05) !important;
-  box-shadow: 0 0 0 3px rgba(0, 212, 200, 0.15);
-}
-
-/* Profile Tabs */
-.profile-tabs {
-  display: flex;
-  overflow-x: auto;
-  gap: 10px;
-  padding-bottom: 10px;
-  margin-bottom: 20px;
-  scrollbar-width: none; /* Firefox */
-}
-.profile-tabs::-webkit-scrollbar { display: none; } /* Chrome/Safari */
-
-.tab-btn {
-  background: var(--secondary-bg);
-  color: var(--lux-text);
-  border: none;
-  padding: 10px 20px;
-  border-radius: 30px;
-  font-size: 14px;
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-.tab-btn.active {
+/* 6. BUTTONS (Shining State) */
+.btn-primary {
   background: var(--shining-gradient);
-  background-size: 200% 200%;
+  background-size: 200% auto;
   animation: shine 3s linear infinite;
-  color: white;
-  box-shadow: 0 4px 15px -3px rgba(0, 212, 200, 0.4);
+  color: #fff;
+  font-weight: 800;
+  border: none;
+  padding: 18px;
+  border-radius: 20px;
+  width: 100%;
+  font-size: 16px;
+  box-shadow: 0 10px 25px -10px rgba(0, 255, 230, 0.4);
 }
 
-/* Grids & Storefront */
+.btn-secondary {
+  background: var(--secondary-bg);
+  border: 1px solid var(--lux-border);
+  color: var(--lux-text);
+  padding: 18px;
+  border-radius: 20px;
+  font-weight: 700;
+  width: 100%;
+}
+
+/* 7. GRIDS & ITEMS */
 .baqala-grid, .inventory-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 15px;
 }
 
-.baqala-card, .item-card {
-  background: var(--lux-card);
-  border: 1px solid rgba(255,255,255,0.05);
-  border-radius: 18px;
-  padding: 16px;
+.item-card {
   position: relative;
   overflow: hidden;
-  cursor: pointer;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  min-height: 140px;
 }
-.baqala-card:active, .item-card:active { transform: scale(0.98); }
-
-.item-card h4 { margin-bottom: 8px; font-weight: 600; font-size: 15px; }
-.cash-price { text-decoration: line-through; color: var(--lux-hint); font-size: 12px; margin-bottom: 2px; }
-.crypto-price { font-weight: 800; color: var(--logo-teal); font-size: 16px; }
 
 .discount-tag {
   position: absolute;
-  top: 0;
-  right: 0;
+  top: 0; right: 0;
   background: var(--logo-orange);
-  color: white;
+  color: #fff;
   padding: 4px 10px;
+  font-size: 10px;
+  font-weight: 900;
   border-bottom-left-radius: 12px;
-  font-size: 11px;
-  font-weight: 800;
-  box-shadow: -2px 2px 10px rgba(255, 107, 0, 0.3);
 }
 
-/* Lists */
-.order-list { list-style: none; }
-.order-list li {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 0;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
-  font-size: 14px;
-}
-.order-list li:last-child { border-bottom: none; padding-bottom: 0; }
-
-.badge-crypto {
-  background: rgba(0, 212, 200, 0.1);
-  color: var(--logo-teal);
-  padding: 4px 8px;
-  border-radius: 8px;
-  font-size: 11px;
-  font-weight: 700;
-  border: 1px solid rgba(0, 212, 200, 0.2);
-}
-
-/* Floating Cart Animation */
-.floating-cart {
-  position: fixed;
-  bottom: 90px;
-  left: 20px;
-  right: 20px;
-  z-index: 999;
-  background: var(--lux-card);
-  border: 1px solid var(--lux-border);
-  box-shadow: 0 15px 35px -10px rgba(0, 212, 200, 0.4);
-  animation: slideUpCart 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-@keyframes slideUpCart {
-  from { transform: translateY(100px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-
-/* Bottom Navigation */
+/* 8. FROSTED BOTTOM NAVIGATION */
 .bottom-nav {
   position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: rgba(15, 23, 42, 0.85);
-  border-top: 1px solid rgba(255,255,255,0.05);
+  bottom: 0px; left: 0; right: 0;
+  z-index: 1000;
+  background: rgba(7, 11, 20, 0.7);
+  backdrop-filter: blur(24px) saturate(200%);
+  -webkit-backdrop-filter: blur(24px) saturate(200%);
+  border-top: 1px solid var(--lux-border);
   display: flex;
   justify-content: space-around;
-  padding: 12px 0 24px;
-  z-index: 1000;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  padding: 15px 0 35px; /* iOS safe area padding */
 }
 
 .nav-item {
@@ -324,20 +229,47 @@ input:focus {
   flex-direction: column;
   align-items: center;
   color: var(--lux-hint);
-  font-size: 11px;
-  font-weight: 600;
-  padding: 6px 20px;
-  border-radius: 16px;
-  transition: all 0.2s ease;
-  cursor: pointer;
+  transition: all 0.3s ease;
 }
 
 .nav-item.active {
   color: var(--logo-teal);
-  background: rgba(0, 212, 200, 0.1);
+  transform: translateY(-2px);
 }
 
 .nav-item span {
-  font-size: 20px;
-  margin-bottom: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  margin-top: 5px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* 9. INPUTS (Luxury Refinement) */
+input {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid var(--lux-border) !important;
+  color: var(--lux-text) !important;
+  padding: 16px !important;
+  border-radius: 15px !important;
+  font-size: 15px !important;
+  margin-bottom: 12px;
+}
+
+input:focus {
+  border-color: var(--logo-teal) !important;
+  background: rgba(0, 212, 200, 0.05) !important;
+}
+
+/* 10. ANIMATIONS & RTL */
+@keyframes shine {
+  to { background-position: 200% center; }
+}
+
+[dir="rtl"] { text-align: right; }
+[dir="rtl"] .discount-tag {
+  right: auto;
+  left: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 12px;
 }
