@@ -1,5 +1,5 @@
 // ================================================
-// backend/routes.js - COMPLETE MVP LOGIC
+// backend/routes.js - V3 (Context-Aware Shopping)
 // ================================================
 
 const express = require('express');
@@ -9,63 +9,28 @@ const router = express.Router();
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// --- HELPER: Geolocation Distance (Haversine) ---
+// --- HELPER: Geolocation Distance ---
 function getDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371; // Radius of earth in km
+  if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+  const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
   const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
             Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
             Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
+  return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
 }
 
 // ==========================================
-// 1. AI GENIE: Parse and Extract
-// ==========================================
-router.post('/ai/parse', async (req, res) => {
-  const { text } = req.body;
-  
-  const SYSTEM_PROMPT = `
-    You are an AI order extractor for a UAE Baqala. 
-    Extract the shopping items and a profile name if mentioned (defaults to "Main").
-    Format strictly as JSON: 
-    { 
-      "profile": "string", 
-      "items": [{"name": "string", "qty": number, "price": number, "category": "snacks"|"dairy"|"beverages"|"household"}] 
-    }
-    Assume these prices in AED if not specified: Laban Up=2, Oman Chips=1.5, Bread=4.5, Milk=6, Water=1.
-  `;
-
-  try {
-    const aiResponse = await openai.chat.completions.create({
-      model: "gpt-4",
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: text }
-      ],
-      temperature: 0.1,
-    });
-
-    const orderData = JSON.parse(aiResponse.choices[0].message.content);
-    res.json({ success: true, orderData });
-  } catch (err) {
-    console.error("AI Parse Error:", err);
-    res.status(500).json({ error: "Could not parse order" });
-  }
-});
-
-// ==========================================
-// 2. VENDOR: Registration & Dashboard BI
+// 1. VENDOR: Registration Fix & BI
 // ==========================================
 
-// Register a new Baqala
 router.post('/baqala/register', async (req, res) => {
   const { name, owner_id, wallet_address, lat, lng } = req.body;
   
-  // Create a unique URL-friendly ID from name
-  const baqalaId = name.toLowerCase().replace(/ /g, '-') + '-' + Math.floor(1000 + Math.random() * 9000);
+  // Create a clean unique ID
+  const cleanName = name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+  const baqalaId = `${cleanName}-${Math.floor(1000 + Math.random() * 9000)}`;
 
   try {
     const { data, error } = await supabase
@@ -73,26 +38,28 @@ router.post('/baqala/register', async (req, res) => {
       .insert([{
         id: baqalaId,
         name,
-        owner_telegram_id: owner_id.toString(),
+        owner_telegram_id: owner_id.toString(), // Must be string
         wallet_address,
-        lat,
-        lng
+        lat: parseFloat(lat),
+        lng: parseFloat(lng)
       }])
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+       console.error("Supabase Register Error:", error);
+       return res.status(400).json({ error: error.message });
+    }
+    
     res.json({ success: true, baqala: data });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Fetch vendor data & BI metrics
 router.get('/baqala/owner/:ownerId', async (req, res) => {
   try {
-    // 1. Fetch Store and Inventory
-    const { data: baqala, error: bError } = await supabase
+    const { data: baqala } = await supabase
       .from('baqalas')
       .select('*, inventory(*)')
       .eq('owner_telegram_id', req.params.ownerId.toString())
@@ -100,28 +67,18 @@ router.get('/baqala/owner/:ownerId', async (req, res) => {
 
     if (!baqala) return res.json({ baqala: null });
 
-    // 2. Fetch Pending Applications
-    const { data: applications } = await supabase
-      .from('hisaab_applications')
-      .select('*')
-      .eq('baqala_id', baqala.id)
-      .eq('status', 'pending');
-
-    // 3. Calc Metrics: Aggregating unpaid items for this store
     const { data: debtData } = await supabase
       .from('unpaid_items')
       .select('price, qty')
       .eq('baqala_id', baqala.id);
 
-    const totalOutstanding = debtData?.reduce((acc, item) => acc + (parseFloat(item.price) * (item.qty || 1)), 0) || 0;
+    const totalOutstanding = debtData?.reduce((acc, item) => acc + (item.price * (item.qty || 1)), 0) || 0;
 
     res.json({ 
       baqala, 
-      applications: applications || [],
       metrics: {
         totalOutstanding,
-        activeCustomers: applications?.filter(a => a.status === 'approved').length || 0,
-        dailyTarget: 5000 // Placeholder for BI target
+        activeCustomers: 0 // Will link to applications table in next step
       }
     });
   } catch (err) {
@@ -130,10 +87,56 @@ router.get('/baqala/owner/:ownerId', async (req, res) => {
 });
 
 // ==========================================
-// 3. CUSTOMER: Discovery & Spending Hub
+// 2. CUSTOMER: Repeat History & Profiles
 // ==========================================
 
-// Discover nearby stores
+// Get list of Baqalas user has previously shopped at
+router.get('/customer/:userId/history', async (req, res) => {
+  try {
+    // Select unique baqala_ids from unpaid_items linked to this user's profiles
+    const { data, error } = await supabase
+      .from('unpaid_items')
+      .select('baqalas(id, name, lat, lng)')
+      .filter('profile_id', 'in', 
+        supabase.from('profiles').select('id').eq('user_telegram_id', req.params.userId.toString())
+      );
+
+    // Clean up duplicates
+    const history = Array.from(new Set((data || []).map(item => JSON.stringify(item.baqalas))))
+                         .map(str => JSON.parse(str))
+                         .filter(Boolean);
+
+    res.json(history);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Manage Family Profiles
+router.get('/customer/:userId/profiles', async (req, res) => {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('user_telegram_id', req.params.userId.toString());
+  res.json(data || []);
+});
+
+router.post('/customer/profile/add', async (req, res) => {
+  const { userId, name } = req.body;
+  const { data, error } = await supabase
+    .from('profiles')
+    .insert([{ user_telegram_id: userId.toString(), name }])
+    .select()
+    .single();
+  
+  if (error) return res.status(400).json({ error: error.message });
+  res.json(data);
+});
+
+// ==========================================
+// 3. CORE DISCOVERY & BUYING
+// ==========================================
+
 router.get('/baqalas/nearby', async (req, res) => {
   const { lat, lng } = req.query;
   try {
@@ -144,7 +147,7 @@ router.get('/baqalas/nearby', async (req, res) => {
       const nearby = data.map(b => ({
         ...b,
         distance: getDistance(parseFloat(lat), parseFloat(lng), b.lat, b.lng)
-      })).sort((a, b) => a.distance - b.distance);
+      })).sort((a, b) => (a.distance || 0) - (b.distance || 0));
       return res.json(nearby);
     }
     res.json(data);
@@ -153,71 +156,21 @@ router.get('/baqalas/nearby', async (req, res) => {
   }
 });
 
-// Checkout items to Hisaab
 router.post('/hisaab/checkout', async (req, res) => {
-  const { telegram_id, items, baqala_id, profile_name } = req.body;
-
+  const { profile_id, baqala_id, items } = req.body;
   try {
-    // 1. Ensure a profile exists for this user (Main Account)
-    let { data: profile } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('user_telegram_id', telegram_id.toString())
-      .eq('name', profile_name || 'Main')
-      .maybeSingle();
-
-    if (!profile) {
-      const { data: newProfile, error: pError } = await supabase
-        .from('profiles')
-        .insert([{ user_telegram_id: telegram_id.toString(), name: profile_name || 'Main' }])
-        .select()
-        .single();
-      if (pError) throw pError;
-      profile = newProfile;
-    }
-
-    // 2. Insert items into unpaid_items
     const insertData = items.map(item => ({
-      profile_id: profile.id,
-      baqala_id: baqala_id,
+      profile_id,
+      baqala_id,
       name: item.name,
       qty: item.qty || 1,
       price: item.price,
-      crypto_discount: item.crypto_discount || 10
+      crypto_discount: 10
     }));
 
-    const { error: iError } = await supabase.from('unpaid_items').insert(insertData);
-    if (iError) throw iError;
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error("Checkout Error:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ==========================================
-// 4. INVENTORY MANAGEMENT
-// ==========================================
-router.post('/baqala/:baqalaId/item', async (req, res) => {
-  const { baqalaId } = req.params;
-  const { name, price, category, cryptoDiscount } = req.body;
-
-  try {
-    const { data, error } = await supabase
-      .from('inventory')
-      .insert({
-        baqala_id: baqalaId,
-        name,
-        category: category || 'snacks',
-        price: parseFloat(price),
-        crypto_discount: parseInt(cryptoDiscount) || 10
-      })
-      .select()
-      .single();
-
+    const { error } = await supabase.from('unpaid_items').insert(insertData);
     if (error) throw error;
-    res.json({ success: true, inventory: data });
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
