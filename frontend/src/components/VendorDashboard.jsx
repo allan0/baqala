@@ -16,7 +16,8 @@ export default function VendorDashboard({ user, location }) {
   const [activeTab, setActiveTab] = useState('overview');
   const [isLoading, setIsLoading] = useState(true);
   const [regForm, setRegForm] = useState({ name: '', wallet: '' });
-  const [newItem, setNewItem] = useState({ name: '', price: '', category: 'snacks' });
+  // --- FIX: Simplified newItem state, removed category ---
+  const [newItem, setNewItem] = useState({ name: '', price: '' });
 
   const getEffectiveUserId = () => {
     if (user?.id) return user.id.toString();
@@ -63,22 +64,22 @@ export default function VendorDashboard({ user, location }) {
     e.preventDefault();
     if (!myBaqala?.id) return;
     
-    // Ensure numeric price
     const priceNum = parseFloat(newItem.price);
     if (isNaN(priceNum)) return alert("Invalid Price");
 
     try {
+      // --- FIX: The request now only sends name and price, matching the backend ---
       const res = await axios.post(`${API_URL}/api/baqala/${myBaqala.id}/item`, {
         name: newItem.name,
-        price: priceNum,
-        category: newItem.category
+        price: priceNum
       });
       if (res.data.success) {
         setMyBaqala(prev => ({ 
           ...prev, 
           inventory: [...(prev.inventory || []), res.data.inventory] 
         }));
-        setNewItem({ name: '', price: '', category: 'snacks' });
+        // --- FIX: Reset state without category ---
+        setNewItem({ name: '', price: '' });
       }
     } catch (err) { 
       console.error("Add Item Error Details:", err.response?.data);
@@ -127,15 +128,7 @@ export default function VendorDashboard({ user, location }) {
             <form onSubmit={addItem} style={{display:'flex', flexDirection:'column', gap:'10px', marginTop:'15px'}}>
               <input placeholder="Item Name" required value={newItem.name} onChange={e=>setNewItem({...newItem, name:e.target.value})} />
               <input type="number" placeholder="Price (AED)" required value={newItem.price} onChange={e=>setNewItem({...newItem, price:e.target.value})} />
-              <select 
-                style={{background: '#ffffff0d', color: 'white', padding: '12px', borderRadius: '10px', border: '1px solid var(--lux-border)'}}
-                value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value})}
-              >
-                <option value="snacks">Snacks</option>
-                <option value="dairy">Dairy</option>
-                <option value="beverages">Beverages</option>
-                <option value="household">Household</option>
-              </select>
+              {/* --- FIX: Removed the category select dropdown --- */}
               <button className="btn-primary" type="submit">List Now</button>
             </form>
           </div>

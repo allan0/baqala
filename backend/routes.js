@@ -110,10 +110,24 @@ router.get('/baqalas/nearby', async (req, res) => {
 
 router.post('/baqala/:baqalaId/item', async (req, res) => {
   try {
-    const { data, error } = await supabase.from('inventory').insert({ baqala_id: req.params.baqalaId, name: req.body.name, price: parseFloat(req.body.price), category: 'snacks' }).select().single();
-    if (error) throw error;
+    // *** FIX: Removed the 'category' field from the insert object ***
+    const { data, error } = await supabase.from('inventory').insert({ 
+      baqala_id: req.params.baqalaId, 
+      name: req.body.name, 
+      price: parseFloat(req.body.price)
+    }).select().single();
+
+    if (error) {
+      // Added more detailed logging for future errors
+      console.error("Supabase insert error in /item route:", error);
+      throw error;
+    }
+
     res.json({ success: true, inventory: data });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { 
+    // Return the specific Supabase error to the frontend if available
+    res.status(500).json({ error: err.message }); 
+  }
 });
 
 module.exports = router;
