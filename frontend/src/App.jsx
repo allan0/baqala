@@ -1,3 +1,7 @@
+// ================================================
+// frontend/src/App.jsx - GLOBAL FRAMEWORK
+// ================================================
+
 import React, { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Bell, ScanLine, LayoutDashboard, ShoppingBag, User as UserIcon, Wallet } from 'lucide-react';
@@ -9,7 +13,6 @@ import './App.css';
 import CustomerDashboard from './components/CustomerDashboard';
 import VendorDashboard from './components/VendorDashboard';
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 const WebApp = window.Telegram?.WebApp;
 
 const App = () => {
@@ -18,7 +21,7 @@ const App = () => {
   const [showIntro, setShowIntro] = useState(true);
   const [role, setRole] = useState(localStorage.getItem('baqala_role') || 'customer');
   const [activeTab, setActiveTab] = useState('home');
-  const [location, setLocation] = useState(null);   // Location is now optional / on-demand
+  const [location, setLocation] = useState(null);
 
   // --- HAPTICS ---
   const triggerHaptic = (style = 'medium') => {
@@ -29,11 +32,14 @@ const App = () => {
     }
   };
 
+  // Switch between Customer and Store Owner
   const toggleRole = () => {
     triggerHaptic('heavy');
     const newRole = role === 'customer' ? 'vendor' : 'customer';
     setRole(newRole);
     localStorage.setItem('baqala_role', newRole);
+    // Reset tab to home when switching roles
+    setActiveTab('home');
   };
 
   // --- INITIALIZATION ---
@@ -42,14 +48,23 @@ const App = () => {
       WebApp.ready();
       WebApp.expand();
       WebApp.setHeaderColor('#070B14');
+      WebApp.setBackgroundColor('#070B14');
 
       if (WebApp.initDataUnsafe?.user) {
         setUser(WebApp.initDataUnsafe.user);
       }
     }
 
-    // Cinematic Intro Timeout
-    const timer = setTimeout(() => setShowIntro(false), 2600);
+    // Auto-request location for store discovery
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => console.warn("Location access denied")
+      );
+    }
+
+    // Luxury Intro Timer
+    const timer = setTimeout(() => setShowIntro(false), 2800);
     return () => clearTimeout(timer);
   }, []);
 
@@ -63,13 +78,14 @@ const App = () => {
           className="mini-logo"
           whileTap={{ scale: 0.85, rotate: -10 }}
           onClick={toggleRole}
+          style={{ width: '40px', height: '40px', borderRadius: '10px' }}
         />
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <span className="mode-label" style={{ fontSize: '11px', color: 'var(--logo-orange)', fontWeight: 700 }}>
-            {role === 'customer' ? 'CUSTOMER' : 'OWNER MODE'}
+          <span className="mode-label" style={{ fontSize: '10px', color: 'var(--logo-orange)', fontWeight: 800, letterSpacing: '0.5px' }}>
+            {role === 'customer' ? 'CUSTOMER' : 'STORE OWNER'}
           </span>
-          <span className="user-name" style={{ fontSize: '16px', fontWeight: 800 }}>
-            {user?.first_name || 'Guest'}
+          <span className="user-name" style={{ fontSize: '15px', fontWeight: 800 }}>
+            {user?.first_name || 'Baqala Guest'}
           </span>
         </div>
       </div>
@@ -77,10 +93,10 @@ const App = () => {
       <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
         {role === 'customer' && (
           <motion.div whileTap={{ scale: 0.9 }} onClick={() => setActiveTab('profile')}>
-            <Wallet size={22} color="var(--logo-teal)" />
+            <Wallet size={20} color="var(--logo-teal)" />
           </motion.div>
         )}
-        <Bell size={22} color="var(--lux-hint)" />
+        <Bell size={20} color="var(--lux-hint)" />
       </div>
     </div>
   );
@@ -88,10 +104,10 @@ const App = () => {
   const renderBottomNav = () => (
     <div className="bottom-nav">
       {[
-        { id: 'home', icon: <LayoutDashboard size={24} />, label: 'Home' },
-        { id: 'hisaab', icon: <ScanLine size={24} />, label: 'Hisaab' },
-        { id: 'stores', icon: <ShoppingBag size={24} />, label: 'Stores' },
-        { id: 'profile', icon: <UserIcon size={24} />, label: 'Profile' },
+        { id: 'home', icon: <LayoutDashboard size={22} />, label: 'Home' },
+        { id: 'hisaab', icon: <ScanLine size={22} />, label: 'Hisaab' },
+        { id: 'stores', icon: <ShoppingBag size={22} />, label: 'Stores' },
+        { id: 'profile', icon: <UserIcon size={22} />, label: 'Profile' },
       ].map((tab) => (
         <div 
           key={tab.id} 
@@ -105,59 +121,68 @@ const App = () => {
     </div>
   );
 
-  // --- MAIN RENDER ---
+  // --- MAIN APP COMPONENT ---
   return (
     <div className="app-root">
       <AnimatePresence>
         {showIntro && (
           <motion.div 
+            key="intro"
             className="welcome-screen"
-            exit={{ opacity: 0, scale: 1.08, filter: "blur(8px)" }}
-            transition={{ duration: 0.8 }}
+            exit={{ opacity: 0, scale: 1.1, filter: "blur(15px)" }}
+            transition={{ duration: 0.8, ease: "easeInOut" }}
           >
             <motion.img 
               src="/baqalaslogo.png" 
               className="logo-intro"
-              initial={{ scale: 5, opacity: 0, filter: "blur(20px)" }}
-              animate={{ scale: 1, opacity: 1, filter: "blur(0px)" }}
-              transition={{ duration: 1.3, ease: [0.16, 1, 0.3, 1] }}
+              initial={{ scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 1, ease: "easeOut" }}
+              style={{ width: '120px', marginBottom: '20px' }}
             />
             <motion.h1 
               className="welcome-title"
-              initial={{ opacity: 0, y: 30 }}
+              initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.7 }}
+              transition={{ delay: 0.5 }}
+              style={{ fontSize: '42px', fontWeight: 900 }}
             >
               Baqalas
             </motion.h1>
-            <p style={{ color: 'var(--lux-hint)', marginTop: '12px', fontSize: '14px' }}>
-              The Digital Hisaab Network
-            </p>
+            <motion.p 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.6 }}
+              transition={{ delay: 1 }}
+              style={{ color: 'var(--lux-hint)', marginTop: '10px', textTransform: 'uppercase', letterSpacing: '2px', fontSize: '12px' }}
+            >
+              Digital Hisaab Network
+            </motion.p>
           </motion.div>
         )}
       </AnimatePresence>
 
       {!showIntro && (
         <motion.div 
-          className="app-container"
+          key="content"
+          className="app-frame"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
+          transition={{ duration: 0.5 }}
         >
           {renderTopBar()}
 
-          <div className="content-area">
+          <main className="content-area">
             {role === 'customer' ? (
               <CustomerDashboard 
                 user={user} 
                 location={location} 
                 activeTab={activeTab} 
-                setActiveTab={setActiveTab}
-                setLocation={setLocation}   // Pass setter so location can be requested on demand
+                setActiveTab={setActiveTab} 
               />
             ) : (
-              <VendorDashboard user={user} />
+              <VendorDashboard user={user} location={location} />
             )}
-          </div>
+          </main>
 
           {role === 'customer' && renderBottomNav()}
         </motion.div>

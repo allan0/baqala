@@ -1,41 +1,41 @@
 // ================================================
-// backend/routes.js - PROFESSIONAL V2 CORE
-// AI GENIE + BI ENGINE + STORAGE + CRUD
+// backend/routes.js - COMPLETE MVP LOGIC
 // ================================================
 
 const express = require('express');
-const supabase = require('./supabaseClient');
+const { supabase } = require('./supabaseClient');
 const OpenAI = require('openai');
 const router = express.Router();
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// --- HELPER: Geolocation Distance ---
+// --- HELPER: Geolocation Distance (Haversine) ---
 function getDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371;
+  const R = 6371; // Radius of earth in km
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
   const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
             Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
             Math.sin(dLon/2) * Math.sin(dLon/2);
-  return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
 }
 
 // ==========================================
-// 1. AI GENIE: Magic Order Extraction
+// 1. AI GENIE: Parse and Extract
 // ==========================================
 router.post('/ai/parse', async (req, res) => {
   const { text } = req.body;
   
   const SYSTEM_PROMPT = `
     You are an AI order extractor for a UAE Baqala. 
-    Extract the shopping items and a profile name if mentioned.
+    Extract the shopping items and a profile name if mentioned (defaults to "Main").
     Format strictly as JSON: 
     { 
       "profile": "string", 
       "items": [{"name": "string", "qty": number, "price": number, "category": "snacks"|"dairy"|"beverages"|"household"}] 
     }
-    If price is unknown, estimate in AED (e.g., Laban=2, Chips=1.5).
+    Assume these prices in AED if not specified: Laban Up=2, Oman Chips=1.5, Bread=4.5, Milk=6, Water=1.
   `;
 
   try {
@@ -57,39 +57,71 @@ router.post('/ai/parse', async (req, res) => {
 });
 
 // ==========================================
-// 2. VENDOR BI: Business Intelligence Engine
+// 2. VENDOR: Registration & Dashboard BI
 // ==========================================
-router.get('/baqala/owner/:ownerId', async (req, res) => {
+
+// Register a new Baqala
+router.post('/baqala/register', async (req, res) => {
+  const { name, owner_id, wallet_address, lat, lng } = req.body;
+  
+  // Create a unique URL-friendly ID from name
+  const baqalaId = name.toLowerCase().replace(/ /g, '-') + '-' + Math.floor(1000 + Math.random() * 9000);
+
   try {
-    // 1. Fetch Baqala
-    const { data: baqala } = await supabase
+    const { data, error } = await supabase
       .from('baqalas')
-      .select('*, inventory(*)')
-      .eq('owner_telegram_id', req.params.ownerId)
+      .insert([{
+        id: baqalaId,
+        name,
+        owner_telegram_id: owner_id.toString(),
+        wallet_address,
+        lat,
+        lng
+      }])
+      .select()
       .single();
 
-    if (!baqala) return res.json(null);
+    if (error) throw error;
+    res.json({ success: true, baqala: data });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-    // 2. Fetch Applications
+// Fetch vendor data & BI metrics
+router.get('/baqala/owner/:ownerId', async (req, res) => {
+  try {
+    // 1. Fetch Store and Inventory
+    const { data: baqala, error: bError } = await supabase
+      .from('baqalas')
+      .select('*, inventory(*)')
+      .eq('owner_telegram_id', req.params.ownerId.toString())
+      .maybeSingle();
+
+    if (!baqala) return res.json({ baqala: null });
+
+    // 2. Fetch Pending Applications
     const { data: applications } = await supabase
       .from('hisaab_applications')
       .select('*')
-      .eq('baqala_id', baqala.id);
+      .eq('baqala_id', baqala.id)
+      .eq('status', 'pending');
 
-    // 3. Calc Metrics (outstanding debt across all profiles for this store)
+    // 3. Calc Metrics: Aggregating unpaid items for this store
     const { data: debtData } = await supabase
       .from('unpaid_items')
       .select('price, qty')
       .eq('baqala_id', baqala.id);
 
-    const totalOutstanding = debtData?.reduce((acc, item) => acc + (item.price * (item.qty || 1)), 0) || 0;
+    const totalOutstanding = debtData?.reduce((acc, item) => acc + (parseFloat(item.price) * (item.qty || 1)), 0) || 0;
 
     res.json({ 
       baqala, 
       applications: applications || [],
       metrics: {
         totalOutstanding,
-        activeCustomers: applications?.filter(a => a.status === 'approved').length || 0
+        activeCustomers: applications?.filter(a => a.status === 'approved').length || 0,
+        dailyTarget: 5000 // Placeholder for BI target
       }
     });
   } catch (err) {
@@ -98,43 +130,10 @@ router.get('/baqala/owner/:ownerId', async (req, res) => {
 });
 
 // ==========================================
-// 3. CUSTOMER ANALYTICS: Spending Hub
+// 3. CUSTOMER: Discovery & Spending Hub
 // ==========================================
-router.get('/hisaab/:userId/summary', async (req, res) => {
-  const { userId } = req.params;
-  try {
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('id, name, unpaid_items(price, qty, crypto_discount)')
-      .eq('user_telegram_id', userId);
 
-    const summary = profiles.map(p => {
-      let cashTotal = 0;
-      let cryptoTotal = 0;
-      
-      p.unpaid_items.forEach(item => {
-        const itemTotal = item.price * (item.qty || 1);
-        cashTotal += itemTotal;
-        cryptoTotal += itemTotal * (1 - (item.crypto_discount || 10) / 100);
-      });
-
-      return {
-        profileName: p.name,
-        cashTotal,
-        cryptoTotal,
-        itemCount: p.unpaid_items.length
-      };
-    });
-
-    res.json(summary);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ==========================================
-// 4. CORE BAQALA & INVENTORY
-// ==========================================
+// Discover nearby stores
 router.get('/baqalas/nearby', async (req, res) => {
   const { lat, lng } = req.query;
   try {
@@ -154,9 +153,55 @@ router.get('/baqalas/nearby', async (req, res) => {
   }
 });
 
+// Checkout items to Hisaab
+router.post('/hisaab/checkout', async (req, res) => {
+  const { telegram_id, items, baqala_id, profile_name } = req.body;
+
+  try {
+    // 1. Ensure a profile exists for this user (Main Account)
+    let { data: profile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('user_telegram_id', telegram_id.toString())
+      .eq('name', profile_name || 'Main')
+      .maybeSingle();
+
+    if (!profile) {
+      const { data: newProfile, error: pError } = await supabase
+        .from('profiles')
+        .insert([{ user_telegram_id: telegram_id.toString(), name: profile_name || 'Main' }])
+        .select()
+        .single();
+      if (pError) throw pError;
+      profile = newProfile;
+    }
+
+    // 2. Insert items into unpaid_items
+    const insertData = items.map(item => ({
+      profile_id: profile.id,
+      baqala_id: baqala_id,
+      name: item.name,
+      qty: item.qty || 1,
+      price: item.price,
+      crypto_discount: item.crypto_discount || 10
+    }));
+
+    const { error: iError } = await supabase.from('unpaid_items').insert(insertData);
+    if (iError) throw iError;
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Checkout Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// 4. INVENTORY MANAGEMENT
+// ==========================================
 router.post('/baqala/:baqalaId/item', async (req, res) => {
   const { baqalaId } = req.params;
-  const { name, price, category, cryptoDiscount, image_path } = req.body;
+  const { name, price, category, cryptoDiscount } = req.body;
 
   try {
     const { data, error } = await supabase
@@ -166,66 +211,13 @@ router.post('/baqala/:baqalaId/item', async (req, res) => {
         name,
         category: category || 'snacks',
         price: parseFloat(price),
-        crypto_discount: parseInt(cryptoDiscount) || 10,
-        image_path
+        crypto_discount: parseInt(cryptoDiscount) || 10
       })
       .select()
       .single();
 
     if (error) throw error;
     res.json({ success: true, inventory: data });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ==========================================
-// 5. STORAGE & HISAAB LOGIC
-// ==========================================
-router.post('/upload/:bucket', async (req, res) => {
-  const { bucket } = req.params;
-  const { fileName, fileBase64, contentType } = req.body;
-  try {
-    const fileBuffer = Buffer.from(fileBase64, 'base64');
-    const { data, error } = await supabase.storage
-      .from(bucket)
-      .upload(fileName, fileBuffer, { contentType: contentType || 'image/jpeg', upsert: true });
-
-    if (error) throw error;
-    const { data: publicUrl } = supabase.storage.from(bucket).getPublicUrl(fileName);
-    res.json({ success: true, publicUrl: publicUrl.publicUrl });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-router.post('/hisaab/:userId/buy', async (req, res) => {
-  const { userId } = req.params;
-  const { profileKey, items, baqalaId } = req.body;
-
-  try {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('user_telegram_id', userId)
-      .eq('name', profileKey || 'Main')
-      .single();
-
-    if (!profile) return res.status(404).json({ error: "Profile not found" });
-
-    const insertData = items.map(item => ({
-      profile_id: profile.id,
-      baqala_id: baqalaId,
-      name: item.name,
-      qty: item.qty || 1,
-      price: item.price,
-      crypto_discount: item.crypto_discount || 10
-    }));
-
-    const { error } = await supabase.from('unpaid_items').insert(insertData);
-    if (error) throw error;
-
-    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
