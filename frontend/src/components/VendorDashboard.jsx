@@ -1,13 +1,13 @@
 // ================================================
 // frontend/src/components/VendorDashboard.jsx
-// FIXED REGISTRATION + VERSION 6.0 COMPATIBILITY
+// V5: GUEST MODE SUPPORTED FOR TESTING
 // ================================================
 
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { 
   TrendingUp, Layers, RefreshCw, Users, Package, 
-  Store, MapPin, LayoutDashboard, Settings, AlertCircle 
+  Store, MapPin, AlertCircle, CheckCircle2, XCircle
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -17,39 +17,42 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 export default function VendorDashboard({ user, location }) {
   // --- STATE ---
   const [myBaqala, setMyBaqala] = useState(null);
-  const [metrics, setMetrics] = useState({ totalOutstanding: 0, activeCustomers: 0 });
+  const [metrics, setMetrics] = useState({ totalOutstanding: 0 });
   const [activeTab, setActiveTab] = useState('overview');
   const [isLoading, setIsLoading] = useState(true);
-  const [isSyncing, setIsSyncing] = useState(false);
   const [regError, setRegError] = useState(null);
 
   // Form State
   const [regForm, setRegForm] = useState({ name: '', wallet: '' });
   const [newItem, setNewItem] = useState({ name: '', price: '', category: 'snacks' });
 
-  // --- VERSION COMPATIBLE HAPTICS ---
-  const haptic = (style = 'medium') => {
-    try {
-      if (WebApp?.HapticFeedback && WebApp.isVersionAtLeast('6.1')) {
-        WebApp.HapticFeedback.impactOccurred(style);
-      }
-    } catch (e) { console.warn("Haptics not supported"); }
+  // --- GUEST ID HANDLER ---
+  const getEffectiveUserId = () => {
+    if (user?.id) return user.id.toString();
+    
+    // Check for existing test guest ID in browser
+    let guestId = localStorage.getItem('baqala_guest_id');
+    if (!guestId) {
+      guestId = 'guest_' + Math.random().toString(36).substr(2, 9);
+      localStorage.setItem('baqala_guest_id', guestId);
+    }
+    return guestId;
   };
 
   useEffect(() => {
-    if (user?.id) fetchVendorData();
-    else setIsLoading(false);
+    fetchVendorData();
   }, [user]);
 
   const fetchVendorData = async () => {
+    const userId = getEffectiveUserId();
     try {
-      const res = await axios.get(`${API_URL}/api/baqala/owner/${user.id}`);
+      const res = await axios.get(`${API_URL}/api/baqala/owner/${userId}`);
       if (res.data?.baqala) {
         setMyBaqala(res.data.baqala);
         setMetrics(res.data.metrics || { totalOutstanding: 0 });
       }
     } catch (err) {
-      console.error("Fetch Error:", err);
+      console.error("Dashboard Fetch Error:", err);
     } finally {
       setIsLoading(false);
     }
@@ -58,37 +61,33 @@ export default function VendorDashboard({ user, location }) {
   const handleRegister = async (e) => {
     e.preventDefault();
     setRegError(null);
-    haptic('heavy');
+    const userId = getEffectiveUserId();
 
-    if (!location) {
-      setRegError("GPS coordinates not found. Please enable location in Telegram.");
-      return;
-    }
+    // In Guest Mode, if location is missing, we use mock coordinates
+    const finalLat = location?.lat || 25.2048;
+    const finalLng = location?.lng || 55.2708;
 
     const payload = {
       name: regForm.name,
-      owner_id: user.id.toString(), // Ensure String
-      wallet_address: regForm.wallet,
-      lat: location.lat,
-      lng: location.lng
+      owner_id: userId,
+      wallet_address: regForm.wallet || '0xTEST_WALLET',
+      lat: finalLat,
+      lng: finalLng
     };
 
     try {
       const res = await axios.post(`${API_URL}/api/baqala/register`, payload);
       if (res.data.success) {
         setMyBaqala(res.data.baqala);
-        if (WebApp?.showAlert) WebApp.showAlert("🏪 Store Registered!");
+        if (WebApp?.showAlert) WebApp.showAlert("🏪 Test Store Registered!");
       }
     } catch (err) {
-      const msg = err.response?.data?.error || "Registration failed. Check database RLS.";
-      setRegError(msg);
-      console.error("Reg Error:", err);
+      setRegError(err.response?.data?.error || "Registration failed.");
     }
   };
 
   const addItem = async (e) => {
     e.preventDefault();
-    haptic('light');
     try {
       const res = await axios.post(`${API_URL}/api/baqala/${myBaqala.id}/item`, newItem);
       if (res.data.success) {
@@ -98,48 +97,33 @@ export default function VendorDashboard({ user, location }) {
         }));
         setNewItem({ name: '', price: '', category: 'snacks' });
       }
-    } catch (err) { alert("Failed to add item."); }
+    } catch (err) { alert("Error adding item."); }
   };
 
-  // --- VIEWS ---
+  if (isLoading) return <div style={{ textAlign: 'center', paddingTop: '45vh' }}><RefreshCw className="spin-anim" color="var(--logo-teal)" /></div>;
 
-  if (isLoading) return <div style={{ textAlign: 'center', paddingTop: '40vh' }}><RefreshCw className="spin-anim" /></div>;
-
+  // VIEW: Register your Baqala
   if (!myBaqala) return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="app-container">
-      <div className="card" style={{ marginTop: '5vh', textAlign: 'center' }}>
-        <Store size={48} color="var(--logo-teal)" style={{ marginBottom: '20px', alignSelf: 'center' }} />
-        <h2 style={{ marginBottom: '10px' }}>Open Your Store</h2>
-        <p style={{ color: 'var(--lux-hint)', fontSize: '14px', marginBottom: '25px' }}>
-          Enter your details to start accepting Hisaab payments.
-        </p>
-        
-        <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-          <input 
-            placeholder="Store Name (e.g. Sunny Baqala)" required 
-            value={regForm.name} onChange={e => setRegForm({...regForm, name: e.target.value})}
-          />
-          <input 
-            placeholder="Settlement Wallet (0x...)" required 
-            value={regForm.wallet} onChange={e => setRegForm({...regForm, wallet: e.target.value})}
-          />
+      {!user && (
+        <div style={{ background: 'var(--logo-orange)', color: 'black', padding: '10px', borderRadius: '10px', marginBottom: '15px', fontSize: '12px', fontWeight: 800, textAlign: 'center' }}>
+          🧪 TEST MODE: GUEST USER ACTIVE
+        </div>
+      )}
+      <div className="card" style={{ marginTop: '2vh', textAlign: 'center' }}>
+        <Store size={40} color="var(--logo-teal)" style={{ margin: '0 auto 20px' }} />
+        <h2>Open Your Store</h2>
+        <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '20px' }}>
+          <input placeholder="Store Name" required value={regForm.name} onChange={e => setRegForm({...regForm, name: e.target.value})} />
+          <input placeholder="Wallet (0x...)" value={regForm.wallet} onChange={e => setRegForm({...regForm, wallet: e.target.value})} />
           
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px', background: 'rgba(255,255,255,0.05)', borderRadius: '15px', border: location ? '1px solid var(--logo-teal)' : '1px solid #ff4444' }}>
-            <MapPin size={18} color={location ? "var(--logo-teal)" : "#ff4444"} />
-            <span style={{ fontSize: '12px', color: location ? 'white' : '#ff4444' }}>
-              {location ? `GPS Locked: ${location.lat.toFixed(3)}, ${location.lng.toFixed(3)}` : "Waiting for GPS..."}
-            </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px', background: 'rgba(255,255,255,0.03)', borderRadius: '15px' }}>
+            {location ? <CheckCircle2 size={18} color="var(--logo-teal)" /> : <MapPin size={18} color="var(--logo-orange)" />}
+            <span style={{ fontSize: '12px' }}>{location ? "GPS Synced" : "Using Default Location (Dubai)"}</span>
           </div>
 
-          {regError && (
-            <div style={{ color: '#ff4444', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px', justifyContent: 'center' }}>
-              <AlertCircle size={14} /> {regError}
-            </div>
-          )}
-
-          <button className="btn-primary" type="submit" disabled={!location}>
-            Initialize Storefront
-          </button>
+          {regError && <div style={{ color: '#ff4444', fontSize: '12px' }}>{regError}</div>}
+          <button className="btn-primary" type="submit">Initialize Storefront</button>
         </form>
       </div>
     </motion.div>
@@ -149,13 +133,7 @@ export default function VendorDashboard({ user, location }) {
     <div className="app-container" style={{ paddingBottom: '120px' }}>
       <div className="profile-tabs" style={{ display: 'flex', gap: '10px', marginBottom: '25px' }}>
         {['overview', 'inventory', 'settings'].map(tab => (
-          <button 
-            key={tab} className={`tab-btn ${activeTab === tab ? 'active' : ''}`}
-            onClick={() => { haptic('light'); setActiveTab(tab); }}
-            style={{ flex: 1, textTransform: 'capitalize', padding: '12px' }}
-          >
-            {tab}
-          </button>
+          <button key={tab} className={`tab-btn ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)} style={{ flex: 1, textTransform: 'uppercase', padding: '14px', fontSize: '11px' }}>{tab}</button>
         ))}
       </div>
 
@@ -163,26 +141,13 @@ export default function VendorDashboard({ user, location }) {
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
           <div className="metric-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '20px' }}>
             <div className="metric-card">
-              <span className="mode-label"><TrendingUp size={10} /> REVENUE</span>
-              <h3 style={{ fontSize: '22px' }}>AED 0.00</h3>
+               <span style={{fontSize: '10px'}}>REVENUE</span>
+               <h3 style={{ fontSize: '22px' }}>AED 0.00</h3>
             </div>
-            <div className="metric-card">
-              <span className="mode-label"><Layers size={10} /> HISAAB DUE</span>
-              <h3 style={{ fontSize: '22px', color: 'var(--logo-orange)' }}>AED {metrics.totalOutstanding.toFixed(2)}</h3>
+            <div className="metric-card" style={{ borderLeft: '3px solid var(--logo-orange)' }}>
+               <span style={{fontSize: '10px'}}>OUTSTANDING</span>
+               <h3 style={{ fontSize: '22px', color: 'var(--logo-orange)' }}>AED {metrics.totalOutstanding.toFixed(2)}</h3>
             </div>
-          </div>
-
-          <div className="card" style={{ border: '1px solid var(--logo-teal)' }}>
-            <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <RefreshCw size={18} className={isSyncing ? 'spin-anim' : ''} />
-              Digital Ledger Sync
-            </h4>
-            <p style={{ fontSize: '13px', color: 'var(--lux-hint)', margin: '10px 0 15px' }}>
-              Anchor off-chain debt to the blockchain.
-            </p>
-            <button className="btn-primary" onClick={() => { setIsSyncing(true); setTimeout(()=>setIsSyncing(false), 2000); }}>
-              Sync Ledger
-            </button>
           </div>
         </motion.div>
       )}
@@ -190,19 +155,18 @@ export default function VendorDashboard({ user, location }) {
       {activeTab === 'inventory' && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
           <div className="card">
-            <h4>Add New Item</h4>
-            <form onSubmit={addItem} style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px' }}>
-              <input placeholder="Name" required value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} />
+            <h4>Add New Product</h4>
+            <form onSubmit={addItem} style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '15px' }}>
+              <input placeholder="Product Name" required value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} />
               <input type="number" placeholder="Price (AED)" required value={newItem.price} onChange={e => setNewItem({...newItem, price: e.target.value})} />
-              <button className="btn-primary" type="submit">List Item</button>
+              <button className="btn-primary" type="submit">Add to Catalog</button>
             </form>
           </div>
           <div className="card" style={{ marginTop: '20px' }}>
-            <h4>Catalog</h4>
-            {(myBaqala.inventory || []).map(item => (
-              <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--lux-border)' }}>
-                <span style={{ fontSize: '14px' }}>{item.name}</span>
-                <span style={{ fontWeight: 700 }}>AED {item.price}</span>
+            {myBaqala.inventory?.map(item => (
+              <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 0', borderBottom: '1px solid var(--lux-border)' }}>
+                <span>{item.name}</span>
+                <span style={{ fontWeight: 800, color: 'var(--logo-teal)' }}>AED {item.price}</span>
               </div>
             ))}
           </div>
@@ -211,9 +175,8 @@ export default function VendorDashboard({ user, location }) {
 
       {activeTab === 'settings' && (
         <div className="card">
-          <h3 style={{ marginBottom: '15px' }}>{myBaqala.name}</h3>
-          <p style={{ fontSize: '14px', color: 'var(--lux-hint)' }}>Merchant ID: {myBaqala.id}</p>
-          <p style={{ fontSize: '14px', color: 'var(--lux-hint)' }}>Wallet: {myBaqala.wallet_address}</p>
+          <h3>{myBaqala.name}</h3>
+          <p style={{ fontSize: '13px', opacity: 0.5 }}>Owner ID: {getEffectiveUserId()}</p>
         </div>
       )}
     </div>
