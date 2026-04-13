@@ -58,7 +58,6 @@ export default function CustomerDashboard({ user, location, activeTab, setActive
   const fetchHisaab = async () => {
     if (!user?.id) return;
     try {
-      // Fetches user summary from backend
       const res = await axios.get(`${API_URL}/api/hisaab/${user.id}/summary`);
       setHisaabSummary(res.data || []);
     } catch (e) {
@@ -91,7 +90,7 @@ export default function CustomerDashboard({ user, location, activeTab, setActive
         telegram_id: user.id,
         baqala_id: selectedBaqala.id,
         items: cart,
-        profile_name: 'Main' // Default profile
+        profile_name: 'Main'
       });
 
       if (res.data.success) {
@@ -121,7 +120,6 @@ export default function CustomerDashboard({ user, location, activeTab, setActive
 
   const renderHome = () => (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-      {/* Mini Hisaab Preview Card */}
       <div className="hisaab-card" onClick={() => setActiveTab('hisaab')}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
           <span style={{ fontWeight: 800, fontSize: '12px', opacity: 0.8, letterSpacing: '1px' }}>ACTIVE TAB</span>
@@ -141,7 +139,7 @@ export default function CustomerDashboard({ user, location, activeTab, setActive
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '25px 0 15px' }}>
         <h3 style={{ fontSize: '18px', fontWeight: 800 }}>Nearby Baqalas</h3>
-        <span style={{ color: 'var(--logo-teal)', fontSize: '13px', fontWeight: 600 }} onClick={() => setActiveTab('stores')}>View All</span>
+        <span style={{ color: 'var(--logo-teal)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }} onClick={() => setActiveTab('stores')}>View All</span>
       </div>
 
       <div className="baqala-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
@@ -197,14 +195,14 @@ export default function CustomerDashboard({ user, location, activeTab, setActive
 
       <AnimatePresence>
         {cart.length > 0 && (
-          <motion.div initial={{ y: 100 }} animate={{ y: 0 }} exit={{ y: 100 }} style={{ position: 'fixed', bottom: '80px', left: '15px', right: '15px', z.index: 1000 }}>
+          <motion.div initial={{ y: 100 }} animate={{ y: 0 }} exit={{ y: 100 }} style={{ position: 'fixed', bottom: '80px', left: '15px', right: '15px', zIndex: 1000 }}>
             <div className="card" style={{ background: 'rgba(7, 11, 20, 0.95)', backdropFilter: 'blur(20px)', border: '1px solid var(--logo-teal)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <h4 style={{ margin: 0 }}>{cart.length} Items Selected</h4>
+                <h4 style={{ margin: 0 }}>{cart.length} Items</h4>
                 <p style={{ fontSize: '12px', color: 'var(--lux-hint)', margin: 0 }}>Total: AED {cart.reduce((a, b) => a + (b.price * b.qty), 0).toFixed(2)}</p>
               </div>
               <button className="btn-primary" style={{ width: 'auto', padding: '12px 24px' }} onClick={handleCheckout} disabled={isProcessing}>
-                {isProcessing ? "Processing..." : "Checkout"}
+                {isProcessing ? "Wait..." : "Checkout"}
               </button>
             </div>
           </motion.div>
@@ -213,7 +211,6 @@ export default function CustomerDashboard({ user, location, activeTab, setActive
     </motion.div>
   );
 
-  // --- MAIN VIEW LOGIC ---
   if (selectedBaqala) return <div className="app-container" style={{ paddingBottom: '150px' }}>{renderStorefront()}</div>;
 
   return (
@@ -226,7 +223,7 @@ export default function CustomerDashboard({ user, location, activeTab, setActive
           {hisaabSummary.length === 0 ? (
             <div className="card" style={{ textAlign: 'center', padding: '40px 20px' }}>
               <History size={40} style={{ opacity: 0.2, marginBottom: '15px' }} />
-              <p style={{ color: 'var(--lux-hint)' }}>You don't have any active Hisaab tabs yet. Visit a nearby store to start one!</p>
+              <p style={{ color: 'var(--lux-hint)' }}>No active Hisaab tabs found.</p>
             </div>
           ) : (
             hisaabSummary.map((h, i) => (
@@ -248,8 +245,8 @@ export default function CustomerDashboard({ user, location, activeTab, setActive
               </div>
             ))
           )}
-          <button className="btn-primary" style={{ marginTop: '20px' }} onClick={() => WebApp.showAlert("Web3 Wallet integration coming in Phase 2!")}>
-            <Wallet size={18} style={{ marginRight: '8px' }} /> Settle All via Crypto
+          <button className="btn-primary" style={{ marginTop: '20px' }} onClick={() => WebApp.showAlert("Web3 Wallet integration coming soon!")}>
+            <Wallet size={18} style={{ marginRight: '8px' }} /> Settle via Crypto
           </button>
         </motion.div>
       )}
@@ -262,10 +259,10 @@ export default function CustomerDashboard({ user, location, activeTab, setActive
           </div>
           <div className="baqala-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
             {nearbyBaqalas.map(b => (
-              <motion.div key={b.id} className="card" whileTap={{ scale: 0.95 }} onClick={() => setSelectedBaqala(b)}>
+              <motion.div key={b.id} className="card" whileTap={{ scale: 0.95 }} onClick={() => { haptic('medium'); setSelectedBaqala(b); }}>
                 <h4 style={{ fontSize: '15px' }}>{b.name}</h4>
                 <p style={{ fontSize: '12px', color: 'var(--lux-hint)', marginTop: '5px' }}>
-                  {b.distance ? `${b.distance.toFixed(1)} km away` : 'UAE'}
+                  {b.distance ? `${b.distance.toFixed(1)} km away` : 'Open Now'}
                 </p>
               </motion.div>
             ))}
@@ -276,7 +273,7 @@ export default function CustomerDashboard({ user, location, activeTab, setActive
       {activeTab === 'profile' && (
          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             <div className="card" style={{ textAlign: 'center' }}>
-               <img src={user?.photo_url || `https://ui-avatars.com/api/?name=${user?.first_name}`} style={{ width: '80px', height: '80px', borderRadius: '50%', border: '3px solid var(--logo-teal)', marginBottom: '15px' }} />
+               <img src={user?.photo_url || `https://ui-avatars.com/api/?name=${user?.first_name}`} style={{ width: '80px', height: '80px', borderRadius: '50%', border: '3px solid var(--logo-teal)', marginBottom: '15px' }} alt="Profile" />
                <h3>{user?.first_name} {user?.last_name}</h3>
                <p style={{ color: 'var(--lux-hint)', fontSize: '13px' }}>Network Member since 2025</p>
             </div>
