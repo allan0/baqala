@@ -3,7 +3,7 @@
 // V5: GUEST MODE SUPPORTED FOR TESTING
 // ================================================
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   MapPin, History, ChevronRight, Package, 
@@ -25,6 +25,17 @@ export default function CustomerDashboard({ user, location, activeTab, setActive
   const [showProfileSelector, setShowProfileSelector] = useState(false);
   const [isAddingProfile, setIsAddingProfile] = useState(false);
   const [newProfileName, setNewProfileName] = useState('');
+  
+  // --- ADDED STATE FOR SEARCH ---
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // --- ADDED MEMOIZED FILTERING LOGIC ---
+  const filteredStores = useMemo(() => {
+    if (!searchQuery) return nearbyBaqalas;
+    return nearbyBaqalas.filter(b => 
+      b.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [nearbyBaqalas, searchQuery]);
 
   // --- GUEST ID HANDLER ---
   const getEffectiveUserId = () => {
@@ -94,12 +105,19 @@ export default function CustomerDashboard({ user, location, activeTab, setActive
       {!user && <div style={{ background: 'var(--logo-teal)', color: 'black', padding: '8px', borderRadius: '8px', marginBottom: '20px', fontSize: '11px', fontWeight: 800, textAlign: 'center' }}>🧪 GUEST BROWSING ENABLED</div>}
       <div style={{ position: 'relative', marginBottom: '25px' }}>
         <Search size={18} style={{ position: 'absolute', left: '12px', top: '14px', opacity: 0.4 }} />
-        <input placeholder="Search stores..." style={{ paddingLeft: '40px', marginBottom: 0, height: '48px' }} />
+        {/* --- UPDATED INPUT --- */}
+        <input 
+          placeholder="Search stores..." 
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={{ paddingLeft: '40px', marginBottom: 0, height: '48px' }} 
+        />
       </div>
 
       <h3 style={{ fontSize: '12px', fontWeight: 800, marginBottom: '12px', opacity: 0.5 }}>AVAILABLE STORES</h3>
       <div className="baqala-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-        {nearbyBaqalas.map(b => (
+        {/* --- UPDATED GRID TO USE FILTERED STORES --- */}
+        {filteredStores.map(b => (
           <div key={b.id} className="card" onClick={() => setSelectedBaqala(b)}>
              <h4 style={{ fontSize: '14px' }}>{b.name}</h4>
              <p style={{ fontSize: '11px', color: 'var(--logo-teal)', marginTop: '5px' }}>{b.distance ? `${b.distance.toFixed(1)} km away` : 'Open'}</p>
