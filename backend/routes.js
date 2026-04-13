@@ -1,13 +1,22 @@
 // ================================================
-// backend/routes.js - MASTER MVP VERSION
+// backend/routes.js - V5 (Constraint Safety Fix)
 // ================================================
 
 const express = require('express');
 const { supabase } = require('./supabaseClient');
-const OpenAI = require('openai');
 const router = express.Router();
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// --- HELPER: Ensure User Exists in DB ---
+// This prevents Foreign Key violations for Guests/New Users
+async function ensureUserRecord(telegramId) {
+  const { error } = await supabase
+    .from('users')
+    .upsert(
+      { telegram_id: telegramId.toString(), name: telegramId.toString().startsWith('guest') ? 'Guest Tester' : 'Telegram User' },
+      { onConflict: 'telegram_id' }
+    );
+  if (error) console.error("User Sync Error:", error);
+}
 
 // --- HELPER: Distance ---
 function getDistance(lat1, lon1, lat2, lon2) {
@@ -27,6 +36,10 @@ function getDistance(lat1, lon1, lat2, lon2) {
 
 router.post('/baqala/register', async (req, res) => {
   const { name, owner_id, wallet_address, lat, lng } = req.body;
+  
+  // STEP 1: Sync the user first to satisfy Foreign Key constraint
+  await ensureUserRecord(owner_id);
+
   const baqalaId = `${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Math.floor(1000 + Math.random() * 9000)}`;
 
   try {
@@ -36,7 +49,7 @@ router.post('/baqala/register', async (req, res) => {
         id: baqalaId,
         name,
         owner_telegram_id: owner_id.toString(),
-        wallet_address,
+        wallet_address: wallet_address || '0xTEST',
         lat: parseFloat(lat),
         lng: parseFloat(lng)
       }])
@@ -46,6 +59,7 @@ router.post('/baqala/register', async (req, res) => {
     if (error) throw error;
     res.json({ success: true, baqala: data });
   } catch (err) {
+    console.error("Reg Error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -65,7 +79,7 @@ router.get('/baqala/owner/:ownerId', async (req, res) => {
       .select('price, qty')
       .eq('baqala_id', baqala.id);
 
-    const totalOutstanding = debtData?.reduce((acc, item) => acc + (item.price * (item.qty || 1)), 0) || 0;
+    const totalOutstanding = debtData?.reduce((acc, item) => acc + (parseFloat(item.price) * (item.qty || 1)), 0) || 0;
 
     res.json({ baqala, metrics: { totalOutstanding } });
   } catch (err) {
@@ -76,16 +90,6 @@ router.get('/baqala/owner/:ownerId', async (req, res) => {
 // ==========================================
 // 2. CUSTOMER HISTORY & PROFILES
 // ==========================================
-
-router.get('/customer/:userId/history', async (req, res) => {
-  try {
-    // Basic history logic for MVP
-    const { data } = await supabase.from('baqalas').select('*').limit(5);
-    res.json(data || []);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 router.get('/customer/:userId/profiles', async (req, res) => {
   try {
@@ -107,6 +111,10 @@ router.get('/customer/:userId/profiles', async (req, res) => {
 
 router.post('/customer/profile/add', async (req, res) => {
   const { userId, name } = req.body;
+  
+  // STEP 1: Sync the user first to satisfy Foreign Key constraint
+  await ensureUserRecord(userId);
+
   try {
     const { data, error } = await supabase
       .from('profiles')
@@ -116,8 +124,16 @@ router.post('/customer/profile/add', async (req, res) => {
     if (error) throw error;
     res.json(data);
   } catch (err) {
+    console.error("Profile Add Error:", err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+router.get('/customer/:userId/history', async (req, res) => {
+  try {
+    const { data } = await supabase.from('baqalas').select('*').limit(3);
+    res.json(data || []);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ==========================================
@@ -162,33 +178,20 @@ router.post('/hisaab/checkout', async (req, res) => {
 });
 
 // ==========================================
-// 4. INVENTORY & AI
+// 4. INVENTORY
 // ==========================================
 
 router.post('/baqala/:baqalaId/item', async (req, res) => {
   const { baqalaId } = req.params;
-  const { name, price, category } = req.body;
+  const { name, price } = req.body;
   try {
     const { data, error } = await supabase
       .from('inventory')
-      .insert({ baqala_id: baqalaId, name, price: parseFloat(price), category })
+      .insert({ baqala_id: baqalaId, name, price: parseFloat(price), category: 'snacks' })
       .select().single();
     if (error) throw error;
     res.json({ success: true, inventory: data });
   } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-router.post('/ai/parse', async (req, res) => {
-  const { text } = req.body;
-  const SYSTEM_PROMPT = `Extract order items/profile as JSON: {"profile": "string", "items": [{"name": "string", "qty": number, "price": number}]}`;
-  try {
-    const aiResponse = await openai.chat.completions.create({
-      model: "gpt-4",
-      messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: text }],
-      temperature: 0.1,
-    });
-    res.json({ success: true, orderData: JSON.parse(aiResponse.choices[0].message.content) });
-  } catch (err) { res.status(500).json({ error: "AI Failed" }); }
 });
 
 module.exports = router;
