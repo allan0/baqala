@@ -10,7 +10,40 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
+    "axios": "^1.7.2"{
+  "name": "baqala-backend",
+  "version": "1.2.0",
+  "description": "Unified Baqala Network API & Telegram AI Bot",
+  "main": "bot.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node bot.js",
+    "dev": "node --watch bot.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
     "axios": "^1.7.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "ethers": "^6.13.5",
+    "express": "^4.19.2",
+    "openai": "^4.29.0",
+    "telegraf": "^4.16.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "telegram-mini-app",
+    "web3",
+    "ton",
+    "baqala",
+    "hisaab"
+  ],
+  "author": "Baqala Network",
+  "license": "MIT"
+}
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "ethers": "^6.16.0",
