@@ -36,7 +36,7 @@ const loc = {
     settle_ton: "تسوية بواسطة TON",
     verify_payment: "تأكيد العملية من السجل",
     savings_tag: "تم تطبيق خصم الكريبتو",
-    empty_ledger: "حسابك صافي! لا توجد ديون حالياً.",
+    empty_ledger: "حسابك صافي! ما عليك أي ديون حالياً.",
     tab_active: "الحسابات النشطة",
     tab_history: "سجل التسويات",
     merchant_label: "الدكان",
@@ -99,21 +99,27 @@ export default function HisaabTab({ user, wallet, lang }) {
 
     haptic('heavy');
     
+    // 1. Calculate discounted amount
     const discount = debt.crypto_discount || 10;
     const finalAed = debt.total_aed * (1 - discount / 100);
+    
+    // 2. Convert to Nanotons (TON uses 9 decimals)
     const tonAmount = (finalAed / TON_RATE).toFixed(4);
     const nanoTons = Math.floor(tonAmount * 1000000000);
 
+    // 3. Construct TON Deep Link
     const merchantWallet = debt.baqala_ton_address || "EQA123...PLACEHOLDER";
     const memo = `Baqala_Settle_${debt.id}`;
     const tonUrl = `ton://transfer/${merchantWallet}?amount=${nanoTons}&text=${encodeURIComponent(memo)}`;
 
+    // 4. Fire Deep Link
     if (WebApp?.openLink) {
       WebApp.openLink(tonUrl);
     } else {
       window.location.href = tonUrl;
     }
 
+    // 5. Enter Verification Mode
     setVerifyingId(debt.id);
     if (WebApp?.isVersionAtLeast('6.2')) WebApp.showAlert(t.process_warning);
   };
@@ -122,6 +128,7 @@ export default function HisaabTab({ user, wallet, lang }) {
     haptic('medium');
     setIsLoading(true);
     try {
+      // Backend checks blockchain for the specific memo
       const res = await axios.post(`${API_URL}/api/hisaab/pay`, {
         telegram_id: userId,
         debt_id: debtId,
@@ -152,6 +159,7 @@ export default function HisaabTab({ user, wallet, lang }) {
   return (
     <div className={`px-5 pt-4 ${isRTL ? 'font-arabic' : ''}`}>
       
+      {/* 1. TOTAL BALANCE CARD */}
       <div className="glass-card !p-8 mb-8 bg-gradient-to-br from-teal-400/[0.08] to-transparent border-teal-400/20 relative overflow-hidden">
         <div className="relative z-10 flex justify-between items-start">
            <div>
@@ -170,9 +178,11 @@ export default function HisaabTab({ user, wallet, lang }) {
            <Zap size={14} className="text-teal-400 animate-pulse" />
            {t.rate_info}
         </div>
+        
         <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-teal-400/10 blur-[60px] rounded-full" />
       </div>
 
+      {/* 2. TAB SWITCHER */}
       <div className="flex bg-white/5 backdrop-blur-xl rounded-2xl p-1 mb-8 border border-white/5">
         <button 
           onClick={() => { setActiveView('active'); haptic(); }}
@@ -297,9 +307,4 @@ export default function HisaabTab({ user, wallet, lang }) {
       </AnimatePresence>
     </div>
   );
-}
-
-// Custom Wallet2 icon helper (if Wallet2 is missing from imports)
-function Wallet2({ size, className }) {
-    return <Wallet size={size} className={className} />;
 }
