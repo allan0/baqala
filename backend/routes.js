@@ -1,5 +1,5 @@
 // ================================================
-// backend/routes.js - VERSION 10 (PRO-LEVEL CRM)
+// backend/routes.js - VERSION 12 (ROBUST & CRM READY)
 // ================================================
 
 const express = require('express');
@@ -9,22 +9,98 @@ const router = express.Router();
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// --- MIDDLEWARE: Global User Sync ---
-// Ensures every interaction updates the user's name/ID in our network
-async function syncUser(tgId, name = 'Resident') {
+// --- UTILITY: ATOMIC USER SYNC ---
+// Ensures a user exists in the system before relational actions occur
+async function syncUserRecord(tgId, name = 'Resident') {
+  if (!tgId) return null;
   const idStr = tgId.toString();
-  await supabase.from('users').upsert({ 
-    telegram_id: idStr, 
-    name: name 
-  }, { onConflict: 'telegram_id' });
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .upsert({ 
+        telegram_id: idStr, 
+        name: name || 'Baqala User' 
+      }, { onConflict: 'telegram_id' })
+      .select();
+    
+    if (error) console.error("User Sync Failure:", error.message);
+    return data;
+  } catch (e) {
+    console.error("User Sync Exception:", e);
+    return null;
+  }
 }
 
 // ==========================================
-// 1. NEIGHBORHOOD NETWORK (Discovery)
+// 1. MERCHANT OPERATIONS (IDENTITY & SETTINGS)
+// ==========================================
+
+// Register a New Baqala (Merchant Side)
+router.post('/baqala/register', async (req, res) => {
+  const { name, owner_id, wallet_address } = req.body;
+
+  if (!name || !owner_id) {
+    return res.status(400).json({ error: "Missing critical metadata (Store Name/ID)" });
+  }
+
+  try {
+    // 1. Sync owner first to prevent Foreign Key 500 error
+    await syncUserRecord(owner_id, "Merchant Owner");
+
+    // 2. Generate a clean URL slug for the store
+    const slug = name.toLowerCase().trim().replace(/[^a-z0-9]/g, '-');
+    const uniqueId = `${slug}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const { data, error } = await supabase
+      .from('baqalas')
+      .insert([{
+        id: uniqueId,
+        name: name,
+        owner_telegram_id: owner_id.toString(),
+        wallet_address: wallet_address || '',
+        images: [], // High-end default is no photo until merchant adds
+        crypto_discount: 10 // Default incentive
+      }])
+      .select().single();
+
+    if (error) throw error;
+    res.json({ success: true, baqala: data });
+
+  } catch (err) {
+    console.error("Store Registration Error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update Store Profile (Carousel, Name, Discount)
+router.post('/baqala/:baqalaId/settings', async (req, res) => {
+  const { baqalaId } = req.params;
+  const { name, crypto_discount, images, wallet_address } = req.body;
+
+  try {
+    const { data, error } = await supabase
+      .from('baqalas')
+      .update({ 
+        name,
+        crypto_discount: parseInt(crypto_discount) || 10, 
+        images: images || [], // Array of URLs
+        wallet_address: wallet_address || ''
+      })
+      .eq('id', baqalaId)
+      .select().single();
+
+    if (error) throw error;
+    res.json({ success: true, baqala: data });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ==========================================
+// 2. NETWORK DISCOVERY (Customer Side)
 // ==========================================
 
 router.get('/baqalas/nearby', async (req, res) => {
-  const { user_id } = req.query; // Check if current user is approved
+  const { user_id } = req.query; // Check if this resident is approved or pending
+  
   try {
     const { data: stores, error } = await supabase
       .from('baqalas')
@@ -32,20 +108,21 @@ router.get('/baqalas/nearby', async (req, res) => {
 
     if (error) throw error;
 
-    if (!user_id) return res.json(stores);
+    if (!user_id || user_id === 'undefined') return res.json(stores || []);
 
-    // Check Hisaab permissions for this specific resident
+    // Fetch Hisaab statuses for this specific resident
     const { data: apps } = await supabase
       .from('hisaab_applications')
       .select('baqala_id, status')
       .eq('telegram_id', user_id.toString());
 
-    const enriched = stores.map(s => {
-      const app = apps?.find(a => a.baqala_id === s.id);
+    // Enrich the store data with user-specific permissions
+    const enriched = (stores || []).map(s => {
+      const myApp = apps?.find(a => a.baqala_id === s.id);
       return {
         ...s,
-        isApproved: app?.status === 'approved',
-        isPending: app?.status === 'pending'
+        isApproved: myApp?.status === 'approved',
+        isPending: myApp?.status === 'pending'
       };
     });
 
@@ -54,108 +131,31 @@ router.get('/baqalas/nearby', async (req, res) => {
 });
 
 // ==========================================
-// 2. MERCHANT CRM & SETTINGS
+// 3. CRM: HISAAB APPLICATIONS
 // ==========================================
 
-// Register a new Baqala
-router.post('/baqala/register', async (req, res) => {
-  const { name, owner_id, wallet_address } = req.body;
-  try {
-    await syncUser(owner_id, "Merchant");
-    const baqalaId = `${name.toLowerCase().replace(/\s+/g, '-')}-${Math.floor(1000 + Math.random() * 9000)}`;
-    
-    const { data, error } = await supabase
-      .from('baqalas')
-      .insert([{
-        id: baqalaId,
-        name,
-        owner_telegram_id: owner_id.toString(),
-        wallet_address,
-        images: [], // Start with empty carousel
-        crypto_discount: 10
-      }])
-      .select().single();
-
-    if (error) throw error;
-    res.json({ success: true, baqala: data });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// Fetch Store Data (Owner View)
-router.get('/baqala/owner/:ownerId', async (req, res) => {
-  try {
-    const { data: baqala } = await supabase
-      .from('baqalas')
-      .select('*, inventory(*)')
-      .eq('owner_telegram_id', req.params.ownerId.toString())
-      .maybeSingle();
-
-    if (!baqala) return res.json({ baqala: null });
-
-    // Fetch all residents who applied or have tabs
-    const { data: clients } = await supabase
-      .from('hisaab_applications')
-      .select('*, users(name)')
-      .eq('baqala_id', baqala.id);
-
-    res.json({ baqala, clients });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// Update Identity (Photos, Discounts, Wallet)
-router.post('/baqala/:baqalaId/settings', async (req, res) => {
-  const { crypto_discount, images, wallet_address } = req.body;
-  try {
-    const { data, error } = await supabase
-      .from('baqalas')
-      .update({ 
-        crypto_discount, 
-        images, 
-        wallet_address 
-      })
-      .eq('id', req.params.baqalaId)
-      .select().single();
-
-    if (error) throw error;
-    res.json({ success: true, baqala: data });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// Dissolve Storefront (Delete Everything)
-router.delete('/baqala/:baqalaId', async (req, res) => {
-  const { baqalaId } = req.params;
-  try {
-    await supabase.from('inventory').delete().eq('baqala_id', baqalaId);
-    await supabase.from('hisaab_debts').delete().eq('baqala_id', baqalaId);
-    await supabase.from('hisaab_applications').delete().eq('baqala_id', baqalaId);
-    await supabase.from('baqalas').delete().eq('id', baqalaId);
-    res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// ==========================================
-// 3. HISAAB PROTOCOL (Apply & Approve)
-// ==========================================
-
+// Resident applies for credit at a Baqala
 router.post('/hisaab/apply', async (req, res) => {
   const { telegram_id, baqala_id, name } = req.body;
   try {
-    await syncUser(telegram_id, name);
+    await syncUserRecord(telegram_id, name);
     const { data, error } = await supabase
       .from('hisaab_applications')
-      .insert([{ 
+      .upsert({ 
         telegram_id: telegram_id.toString(), 
         baqala_id, 
         status: 'pending' 
-      }]).select().single();
+      }, { onConflict: 'telegram_id, baqala_id' })
+      .select().single();
 
     if (error) throw error;
     res.json({ success: true, application: data });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Merchant approves/rejects resident application
 router.post('/hisaab/approve', async (req, res) => {
-  const { application_id, status } = req.body;
+  const { application_id, status } = req.body; // 'approved' or 'rejected'
   try {
     const { data, error } = await supabase
       .from('hisaab_applications')
@@ -169,108 +169,98 @@ router.post('/hisaab/approve', async (req, res) => {
 });
 
 // ==========================================
-// 4. SETTLEMENT & HISTORY
+// 4. LEDGER OPERATIONS (Hisaab & Pay)
 // ==========================================
 
-router.post('/hisaab/pay', async (req, res) => {
-  const { telegram_id, debt_id, method } = req.body;
-  try {
-    const { data: debt } = await supabase
-      .from('hisaab_debts')
-      .select('*, baqalas(name, wallet_address)')
-      .eq('id', debt_id)
-      .single();
-
-    if (!debt) return res.status(404).json({ error: "Record missing" });
-
-    // VERIFICATION LOGIC:
-    // In production, we use TON API to check if a transaction exists 
-    // with message: `BaqalaSettlement_${debt_id}`
-    const verified = true; 
-
-    if (verified) {
-      await supabase.from('hisaab_history').insert([{
-        telegram_id: debt.telegram_id,
-        baqala_id: debt.baqala_id,
-        baqala_name: debt.baqalas.name,
-        total_aed: debt.total_aed,
-        items: debt.items,
-        paid_with: method,
-        settled_at: new Date().toISOString()
-      }]);
-
-      await supabase.from('hisaab_debts').delete().eq('id', debt_id);
-      res.json({ success: true });
-    } else {
-      res.status(400).json({ error: "Ledger entry not found" });
-    }
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// --- FETCHING USER LEDGER ---
 router.get('/hisaab/outstanding', async (req, res) => {
+  const { telegram_id } = req.query;
+  if (!telegram_id) return res.json([]);
+  
   try {
     const { data } = await supabase
       .from('hisaab_debts')
       .select('*, baqalas(name, wallet_address, crypto_discount)')
-      .eq('telegram_id', req.query.telegram_id.toString());
+      .eq('telegram_id', telegram_id.toString());
     
-    // Map baqala fields to the debt object for easy UI access
-    const mapped = data.map(d => ({
+    // Map to flat object for UI
+    const mapped = (data || []).map(d => ({
       ...d,
-      baqala_name: d.baqalas.name,
-      baqala_ton_address: d.baqalas.wallet_address,
-      crypto_discount: d.baqalas.crypto_discount
+      baqala_name: d.baqalas?.name || 'Local Shop',
+      baqala_ton_address: d.baqalas?.wallet_address,
+      crypto_discount: d.baqalas?.crypto_discount || 10
     }));
-    res.json(mapped || []);
-  } catch (e) { res.status(500).json([]); }
+    res.json(mapped);
+  } catch (e) { res.json([]); }
 });
 
-router.get('/hisaab/history', async (req, res) => {
+router.post('/hisaab/pay', async (req, res) => {
+  const { debt_id, method } = req.body;
   try {
-    const { data } = await supabase
-      .from('hisaab_history')
-      .select('*')
-      .eq('telegram_id', req.query.telegram_id.toString())
-      .order('settled_at', { ascending: false });
-    res.json(data || []);
-  } catch (e) { res.status(500).json([]); }
+    const { data: debt } = await supabase
+      .from('hisaab_debts')
+      .select('*, baqalas(name)')
+      .eq('id', debt_id)
+      .single();
+
+    if (!debt) return res.status(404).json({ error: "Tab not found" });
+
+    // 1. Move record to immutable history
+    await supabase.from('hisaab_history').insert([{
+      telegram_id: debt.telegram_id,
+      baqala_id: debt.baqala_id,
+      baqala_name: debt.baqalas?.name,
+      total_aed: debt.total_aed,
+      items: debt.items,
+      paid_with: method,
+      settled_at: new Date().toISOString()
+    }]);
+
+    // 2. Remove from active debt
+    await supabase.from('hisaab_debts').delete().eq('id', debt_id);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ==========================================
-// 5. AI GENIE PARSING (Emirati Context)
+// 5. THE AI GENIE (KHALEEJI ENGINE)
 // ==========================================
 
 router.post('/ai/parse', async (req, res) => {
   const { text, lang } = req.body;
+  
   try {
     const prompt = `
-      System: You are the Baqala AI Genie.
+      System: You are the 'Baqala AI Genie'. 
+      Context: Neighborhood grocery ordering in UAE (Dubai/Abu Dhabi). 
       Input: "${text}"
-      User Language: ${lang === 'ar' ? 'Emirati Arabic (Khaleeji)' : 'English'}
+      Language: ${lang === 'ar' ? 'Emirati Arabic (Khaleeji)' : 'English'}
       
-      Task: Parse the items, quantities, and prices (estimate prices if unknown: Milk=2, Bread=1, Chips=1.5, Water=1).
-      Context: User is likely ordering groceries from a Dubai/Abu Dhabi neighborhood shop. 
-      Arabic users use terms like "أبى" (want), "طرش" (send/bring), "حساب" (tab).
+      Instructions: 
+      1. Extract items, quantities, and estimate prices (Bread:1, Milk:2, Laban:1.5, Large Water:3, Chips:1).
+      2. If "profile" is mentioned (e.g., "for the kids" / "على حساب العيال"), set profile name.
+      3. Return ONLY valid JSON.
       
-      Return ONLY JSON:
+      Format:
       {
         "success": true,
         "orderData": {
-          "items": [{"name": "item", "qty": 1, "price": 2.5}],
+          "items": [{"name": "item name", "qty": 1, "price": 2.5}],
           "profile": "Main"
         }
       }
     `;
 
     const response = await openai.chat.completions.create({
-      model: "gpt-4-1106-preview", // Higher quality for parsing
+      model: "gpt-4-1106-preview",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" }
     });
 
     res.json(JSON.parse(response.choices[0].message.content));
-  } catch (err) { res.status(500).json({ success: false }); }
+  } catch (e) {
+    console.error("Genie Error:", e);
+    res.status(500).json({ success: false });
+  }
 });
 
 module.exports = router;

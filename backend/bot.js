@@ -1,5 +1,5 @@
 // ================================================
-// backend/bot.js - VERSION 11 (UNIFIED ECOSYSTEM)
+// backend/bot.js - VERSION 12 (UNIFIED BRAIN)
 // ================================================
 
 require('dotenv').config();
@@ -12,51 +12,51 @@ const cors = require('cors');
 
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 const MINI_APP_URL = process.env.MINI_APP_URL || "https://baqala.vercel.app";
-const API_URL = `https://baqala-i2oi.onrender.com/api`; // Your Render URL
+const API_URL = "https://baqala-i2oi.onrender.com/api"; 
 
-// --- COMPREHENSIVE LOCALIZATION ---
+// --- COMPREHENSIVE BILINGUAL STRINGS (KHALEEJI FOCUS) ---
 const strings = {
   en: {
-    welcome_new: (name) => `Assalamu Alaikum, ${name}! 🛒\n\nWelcome to the Baqala Network. I am your AI assistant for the neighborhood. How can I help you today?`,
-    welcome_store: (store) => `Connected to *${store}* 🏪\n\nYou can ask me for prices, browse categories, or open the store in the app.`,
-    btn_open_app: "🚀 Open in Mini App",
+    welcome: (name) => `Assalamu Alaikum, ${name}! 🛒\n\nWelcome to the Baqala Network. I am your neighborhood AI genie. How would you like to shop today?`,
+    store_context: (store) => `Connected to *${store}* 🏪\n\nYou can browse categories below, ask me for prices, or open the full experience in the app.`,
+    btn_app: "🚀 Open Mini App",
     btn_browse: "📦 Browse Categories",
     btn_ai: "🧞 Ask AI Genie",
     btn_lang: "🌐 العربية",
-    btn_switch_store: "🏪 Switch Store",
+    btn_stores: "🏪 Switch Store",
     choose_cat: "Select a category to see what's on the shelves:",
     ai_intro: "I'm checking the stock... type what you need (e.g., 'How much is the Laban?')",
-    no_items: "This section is empty right now.",
-    order_summary: "✨ AI Genie Summary:",
-    confirm_hisaab: "✅ Confirm & Add to Hisaab",
-    cancel: "❌ Cancel"
+    order_summary: "✨ **AI Genie Summary**:",
+    confirm_hisaab: "✅ Add to Digital Tab",
+    cancel: "❌ Cancel",
+    back: "⬅️ Back to Menu"
   },
   ar: {
-    welcome_new: (name) => `يا هلا بك يا ${name} في شبكة دكاكين! 🛒\n\nأنا مساعدك الذكي في الفريج. كيف أقدر أخدمك اليوم؟`,
-    welcome_store: (store) => `أنت الآن متصل بـ *${store}* 🏪\n\nتقدر تسألني عن الأسعار، تشوف الأقسام، أو تفتح الدكان في التطبيق.`,
-    btn_open_app: "🚀 افتح تطبيق دكان",
+    welcome: (name) => `يا هلا بك يا ${name} في شبكة دكاكين! 🛒\n\nأنا مساعدك الذكي في الفريج. كيف أقدر أخدمك اليوم؟`,
+    store_context: (store) => `أنت الآن متصل بـ *${store}* 🏪\n\nتقدر تتصفح الأقسام، تسألني عن الأسعار، أو تفتح الدكان في التطبيق.`,
+    btn_app: "🚀 افتح تطبيق دكان",
     btn_browse: "📦 تصفح الأقسام",
     btn_ai: "🧞 المساعد الذكي",
     btn_lang: "🌐 English",
-    btn_switch_store: "🏪 تغيير الدكان",
+    btn_stores: "🏪 تغيير الدكان",
     choose_cat: "اختر القسم اللي تبغيه من دكاننا:",
     ai_intro: "أبشر، اكتب اللي تدور عليه (مثلاً: 'كم سعر الحليب؟') وبشيك لك.",
-    no_items: "هذا القسم ما فيه بضاعة حالياً.",
-    order_summary: "✨ ملخص المساعد الذكي:",
-    confirm_hisaab: "✅ تأكيد وإضافة للحساب",
-    cancel: "❌ إلغاء"
+    order_summary: "✨ **ملخص المساعد الذكي**:",
+    confirm_hisaab: "✅ إضافة للحساب الرقمي",
+    cancel: "❌ إلغاء",
+    back: "⬅️ الرجوع للقائمة"
   }
 };
 
-// --- HELPER: GENERATE DEEP LINK ---
-// This tells the Mini App exactly which store and language to load
-const getAppUrl = (storeId, lang) => {
-  const param = `st_${storeId}_ln_${lang}`;
+// --- HELPER: GENERATE UNIFIED DEEP LINK ---
+// Format: st_STOREID_ln_LANG
+const getDeepLink = (storeId, lang) => {
+  const param = `st_${storeId || 'default'}_ln_${lang || 'en'}`;
   return `${MINI_APP_URL}?startapp=${param}`;
 };
 
-// --- MAIN MENU RENDERER ---
-const sendMainMenu = async (ctx, lang, storeId) => {
+// --- RENDERER: DYNAMIC MAIN MENU ---
+const renderMenu = async (ctx, lang, storeId) => {
   const t = strings[lang];
   let storeName = "The Network";
 
@@ -65,46 +65,50 @@ const sendMainMenu = async (ctx, lang, storeId) => {
     if (data) storeName = data.name;
   }
 
-  const text = (storeId === 'default') ? t.welcome_new(ctx.from.first_name) : t.welcome_store(storeName);
+  const welcomeText = (storeId === 'default') 
+    ? t.welcome(ctx.from.first_name) 
+    : t.store_context(storeName);
 
-  return ctx.replyWithMarkdown(text, Markup.inlineKeyboard([
-    [Markup.button.webApp(t.btn_open_app, getAppUrl(storeId, lang))],
+  return ctx.replyWithMarkdown(welcomeText, Markup.inlineKeyboard([
+    [Markup.button.webApp(t.btn_app, getDeepLink(storeId, lang))],
     [Markup.button.callback(t.btn_browse, `cats_${storeId}_${lang}`)],
-    [Markup.button.callback(t.btn_ai, `aiprompt_${lang}`), Markup.button.callback(t.btn_lang, `togglelang_${lang === 'en' ? 'ar' : 'en'}_${storeId}`)]
+    [Markup.button.callback(t.btn_ai, `aiprompt_${lang}`), Markup.button.callback(t.btn_lang, `toggle_${lang === 'en' ? 'ar' : 'en'}_${storeId}`)]
   ]));
 };
 
 // ==========================================
-// 1. COMMANDS & DEEP LINKING
+// 1. START COMMAND (DEEP LINKING)
 // ==========================================
 
 bot.start(async (ctx) => {
   const payload = ctx.startPayload || ""; 
   const parts = payload.split('_');
   
-  // startapp format: chat_STOREID_LANG
+  // startapp format: chat_STOREID_LANG or ai_STOREID_LANG
+  const type = parts[0] || 'generic';
   const storeId = parts[1] || 'default';
   const lang = parts[2] || 'en';
 
-  await sendMainMenu(ctx, lang, storeId);
+  await renderMenu(ctx, lang, storeId);
 });
 
 // ==========================================
-// 2. CATEGORY & ITEM BROWSING
+// 2. CATEGORY BROWSING LOGIC
 // ==========================================
 
 bot.action(/cats_(.+)_(.+)/, async (ctx) => {
   const [_, storeId, lang] = ctx.match;
   const t = strings[lang];
 
-  const categories = ['Snacks', 'Dairy', 'Beverages', 'Household'];
-  const buttons = categories.map(c => [Markup.button.callback(c, `items_${storeId}_${c}_${lang}`)]);
-  buttons.push([Markup.button.callback("⬅️ Back", `menu_${storeId}_${lang}`)]);
+  // Common Baqala Categories
+  const cats = ['Snacks', 'Dairy', 'Beverages', 'Household'];
+  const buttons = cats.map(c => [Markup.button.callback(c, `list_${storeId}_${c}_${lang}`)]);
+  buttons.push([Markup.button.callback(t.back, `menu_${storeId}_${lang}`)]);
 
   ctx.editMessageText(t.choose_cat, Markup.inlineKeyboard(buttons));
 });
 
-bot.action(/items_(.+)_(.+)_(.+)/, async (ctx) => {
+bot.action(/list_(.+)_(.+)_(.+)/, async (ctx) => {
   const [_, storeId, cat, lang] = ctx.match;
   
   const { data: items } = await supabase
@@ -113,23 +117,18 @@ bot.action(/items_(.+)_(.+)_(.+)/, async (ctx) => {
     .eq('baqala_id', storeId)
     .ilike('category', cat);
 
-  let listText = `📦 *${cat}* items at this Baqala:\n\n`;
-  if (!items || items.length === 0) {
-    listText += strings[lang].no_items;
-  } else {
-    items.forEach(i => {
-      listText += `• ${i.name}: *AED ${i.price.toFixed(2)}*\n`;
-    });
-  }
+  let text = `📦 *${cat}* Inventory:\n\n`;
+  if (!items || items.length === 0) text += strings[lang].no_items;
+  else items.forEach(i => text += `• ${i.name}: *AED ${i.price.toFixed(2)}*\n`);
 
-  ctx.replyWithMarkdown(listText, Markup.inlineKeyboard([
-    [Markup.button.webApp("🛒 Add to Tab in App", getAppUrl(storeId, lang))],
-    [Markup.button.callback("⬅️ Back to Categories", `cats_${storeId}_${lang}`)]
+  ctx.replyWithMarkdown(text, Markup.inlineKeyboard([
+    [Markup.button.webApp(strings[lang].btn_app, getDeepLink(storeId, lang))],
+    [Markup.button.callback("⬅️ Back", `cats_${storeId}_${lang}`)]
   ]));
 });
 
 // ==========================================
-// 3. AI CHAT INTERFACE
+// 3. AI GENIE CONTEXTUAL CHAT
 // ==========================================
 
 bot.action(/aiprompt_(.+)/, (ctx) => {
@@ -145,66 +144,66 @@ bot.on('text', async (ctx) => {
   const lang = isAr ? 'ar' : 'en';
   const t = strings[lang];
 
-  const wait = await ctx.reply(isAr ? "جاري البحث..." : "Thinking...");
+  const loading = await ctx.reply(isAr ? "جاري البحث في الرفوف..." : "Checking the shelves...");
 
   try {
     const res = await axios.post(`${API_URL}/ai/parse`, { text, lang });
     if (res.data.success) {
       const { items, profile } = res.data.orderData;
-      let summary = `*${t.order_summary}*\n\n`;
+      let summary = `${t.order_summary}\n\n`;
       items.forEach(i => summary += `• ${i.qty}x ${i.name} (~AED ${i.price})\n`);
-      summary += `\nTarget Profile: *${profile}*`;
+      summary += `\n${isAr ? 'الملف' : 'Profile'}: *${profile}*`;
 
-      await ctx.telegram.deleteMessage(ctx.chat.id, wait.message_id);
+      await ctx.telegram.deleteMessage(ctx.chat.id, loading.message_id);
       ctx.replyWithMarkdown(summary, Markup.inlineKeyboard([
         [Markup.button.callback(t.confirm_hisaab, 'confirm_order')],
-        [Markup.button.callback(t.cancel, 'cancel_order')]
+        [Markup.button.callback(t.cancel, 'cancel_order')],
+        [Markup.button.webApp(t.btn_app, getDeepLink('default', lang))]
       ]));
     }
   } catch (e) {
-    ctx.reply(isAr ? "ما فهمت عليك، جرب مرة ثانية." : "I couldn't parse that. Try something simpler!");
+    ctx.reply(isAr ? "السموحة، ما فهمت عليك. جرب طلب أبسط." : "I couldn't parse that. Try something simpler like '2 waters'.");
   }
 });
 
 // ==========================================
-// 4. LANGUAGE & NAVIGATION
+// 4. NAVIGATION & LANGUAGE
 // ==========================================
 
-bot.action(/togglelang_(.+)_(.+)/, (ctx) => {
+bot.action(/toggle_(.+)_(.+)/, (ctx) => {
   const [_, newLang, storeId] = ctx.match;
-  ctx.answerCbQuery(newLang === 'ar' ? "تم تغيير اللغة" : "Language Switched");
-  return sendMainMenu(ctx, newLang, storeId);
+  return renderMenu(ctx, newLang, storeId);
 });
 
 bot.action(/menu_(.+)_(.+)/, (ctx) => {
   const [_, storeId, lang] = ctx.match;
   ctx.deleteMessage();
-  return sendMainMenu(ctx, lang, storeId);
+  return renderMenu(ctx, lang, storeId);
 });
 
 bot.action('confirm_order', (ctx) => {
-  ctx.answerCbQuery();
-  ctx.editMessageText("✅ Done! Items added to your neighborhood Hisaab. The merchant is preparing them now.");
+  ctx.answerCbQuery("Done!");
+  ctx.editMessageText("✅ Order Anchored! The merchant is preparing your items and your Digital Hisaab has been updated.");
 });
 
 bot.action('cancel_order', (ctx) => {
-  ctx.answerCbQuery();
-  ctx.editMessageText("Discarded.");
+  ctx.editMessageText("Order discarded.");
 });
 
 // ==========================================
-// 5. SERVER INFRASTRUCTURE
+// 5. SERVER RUNTIME (EXPRESS)
 // ==========================================
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use('/api', routes); // Mount routes for internal AI parsing calls
+app.use('/api', routes); // Shared API routes
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`✅ Baqala Backend Active on ${PORT}`));
+app.listen(PORT, () => console.log(`✅ Backend Protocol Active on ${PORT}`));
 
-bot.launch().then(() => console.log('🤖 Bot Logic Online'));
+bot.launch().then(() => console.log('🤖 Unified Bot Brain Online'));
 
+// Graceful Shutdown
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
