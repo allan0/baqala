@@ -84,7 +84,9 @@ export default function HisaabTab({ user, wallet, lang }) {
   };
 
   const haptic = (style = 'light') => {
-    if (WebApp?.HapticFeedback) WebApp.HapticFeedback.impactOccurred(style);
+    if (WebApp?.HapticFeedback) {
+      try { WebApp.HapticFeedback.impactOccurred(style); } catch (e) {}
+    }
   };
 
   // --- REAL ON-CHAIN SETTLEMENT LOGIC ---
@@ -97,24 +99,21 @@ export default function HisaabTab({ user, wallet, lang }) {
 
     haptic('heavy');
     
-    // 1. Calculate discounted amount
     const discount = debt.crypto_discount || 10;
     const finalAed = debt.total_aed * (1 - discount / 100);
-    
-    // 2. Convert to Nanotons (TON uses 9 decimals)
     const tonAmount = (finalAed / TON_RATE).toFixed(4);
     const nanoTons = Math.floor(tonAmount * 1000000000);
 
-    // 3. Construct TON Deep Link
     const merchantWallet = debt.baqala_ton_address || "EQA123...PLACEHOLDER";
     const memo = `Baqala_Settle_${debt.id}`;
     const tonUrl = `ton://transfer/${merchantWallet}?amount=${nanoTons}&text=${encodeURIComponent(memo)}`;
 
-    // 4. Fire Deep Link
-    if (WebApp?.openLink) WebApp.openLink(tonUrl);
-    else window.location.href = tonUrl;
+    if (WebApp?.openLink) {
+      WebApp.openLink(tonUrl);
+    } else {
+      window.location.href = tonUrl;
+    }
 
-    // 5. Enter Verification Mode
     setVerifyingId(debt.id);
     if (WebApp?.isVersionAtLeast('6.2')) WebApp.showAlert(t.process_warning);
   };
@@ -123,7 +122,6 @@ export default function HisaabTab({ user, wallet, lang }) {
     haptic('medium');
     setIsLoading(true);
     try {
-      // Backend checks blockchain for the specific memo
       const res = await axios.post(`${API_URL}/api/hisaab/pay`, {
         telegram_id: userId,
         debt_id: debtId,
@@ -154,7 +152,6 @@ export default function HisaabTab({ user, wallet, lang }) {
   return (
     <div className={`px-5 pt-4 ${isRTL ? 'font-arabic' : ''}`}>
       
-      {/* 1. TOTAL BALANCE CARD */}
       <div className="glass-card !p-8 mb-8 bg-gradient-to-br from-teal-400/[0.08] to-transparent border-teal-400/20 relative overflow-hidden">
         <div className="relative z-10 flex justify-between items-start">
            <div>
@@ -173,12 +170,9 @@ export default function HisaabTab({ user, wallet, lang }) {
            <Zap size={14} className="text-teal-400 animate-pulse" />
            {t.rate_info}
         </div>
-        
-        {/* Decorative background blur */}
         <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-teal-400/10 blur-[60px] rounded-full" />
       </div>
 
-      {/* 2. TAB SWITCHER */}
       <div className="flex bg-white/5 backdrop-blur-xl rounded-2xl p-1 mb-8 border border-white/5">
         <button 
           onClick={() => { setActiveView('active'); haptic(); }}
@@ -200,7 +194,6 @@ export default function HisaabTab({ user, wallet, lang }) {
 
       <AnimatePresence mode="wait">
         {activeView === 'active' ? (
-          /* --- ACTIVE VIEW --- */
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} key="active" className="space-y-4 pb-20">
              {outstanding.length === 0 ? (
                <div className="glass-card !p-16 text-center opacity-30 border-dashed">
@@ -226,7 +219,6 @@ export default function HisaabTab({ user, wallet, lang }) {
                        </div>
                     </div>
 
-                    {/* ITEM DROPDOWN */}
                     <div className="border-t border-white/5 pt-4 mb-6">
                        <button 
                         onClick={() => setExpandedId(expandedId === debt.id ? null : debt.id)}
@@ -250,7 +242,6 @@ export default function HisaabTab({ user, wallet, lang }) {
                        </AnimatePresence>
                     </div>
 
-                    {/* SETTLEMENT ACTIONS */}
                     {verifyingId === debt.id ? (
                       <button 
                         onClick={() => verifyOnChain(debt.id)}
@@ -272,7 +263,6 @@ export default function HisaabTab({ user, wallet, lang }) {
              )}
           </motion.div>
         ) : (
-          /* --- HISTORY VIEW --- */
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} key="history" className="space-y-3 pb-24">
              {history.length === 0 ? (
                <div className="p-20 text-center opacity-10 italic text-[10px] uppercase tracking-[3px]">No records found</div>
@@ -309,11 +299,7 @@ export default function HisaabTab({ user, wallet, lang }) {
   );
 }
 
-// Utility icon
-function ArrowUpRight({ size, className }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/>
-    </svg>
-  );
+// Custom Wallet2 icon helper (if Wallet2 is missing from imports)
+function Wallet2({ size, className }) {
+    return <Wallet size={size} className={className} />;
 }
