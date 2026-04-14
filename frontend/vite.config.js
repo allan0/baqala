@@ -11,7 +11,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          vendor: ['react', 'react-dom'],
+          vendor: ['react', 'react-dom', 'ethers'],
         },
       },
     },
@@ -19,5 +19,9 @@ export default defineConfig({
   resolve: {
     extensions: ['.js', '.jsx', '.json'],
   },
-  base: './',   // Important for Telegram Mini App
+  base: './',   // Important for Telegram Mini App deployment
+  server: {
+    port: 5173,
+    host: true,
+  },
 })

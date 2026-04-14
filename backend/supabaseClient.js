@@ -1,6 +1,5 @@
 // ================================================
-// backend/supabaseClient.js
-// Centralized Supabase Client with RLS context support
+// backend/supabaseClient.js - COMPLETE with RLS + Context
 // ================================================
 
 const { createClient } = require('@supabase/supabase-js');
@@ -46,14 +45,13 @@ const getScopedClient = (telegramId) => {
  * Sets the local session variable for the current transaction
  */
 async function setRlsContext(client, telegramId) {
-  // We use a RPC or a simple query to set the session variable 
-  // since Supabase RLS policies rely on current_setting
   await client.rpc('set_app_context', { tg_id: telegramId.toString() });
 }
 
-console.log("✅ Supabase client initialized for Baqala Network");
+console.log("✅ Supabase client initialized for Baqala Network - Hisaab + Wallet Ready");
 
 module.exports = {
   supabase,
-  getScopedClient
+  getScopedClient,
+  setRlsContext
 };

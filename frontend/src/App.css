@@ -1,22 +1,13 @@
-/* ============================================================
-   BAQALA NETWORK v2 - LUXURY GRAINY GLASSMORPHISM
-   Theme: Dark UAE Baqala with Teal & Orange accents
-   ============================================================ */
-
 :root {
-  --logo-teal: #00D4C8;
-  --logo-orange: #FF6B00;
-  --shining-gradient: linear-gradient(90deg, #00D4C8, #FF6B00, #00D4C8);
-  
-  --lux-dark: #070B14;
-  --lux-glass: rgba(30, 41, 59, 0.55);
-  --lux-border: rgba(255, 255, 255, 0.08);
-  --lux-text: #F8FAFC;
-  --lux-hint: #94A3B8;
-  --accent-gold: #FACC15;
+  --teal: #00f5d4;
+  --orange: #ff5e00;
+  --neon-glow: 0 0 25px -5px rgb(0 245 212 / 0.6);
+  --glass: rgba(15, 23, 42, 0.82);
+  --border: rgba(255, 255, 255, 0.08);
+  --text: #f8fafc;
+  --hint: #94a3b8;
 }
 
-/* ====================== CORE RESET ====================== */
 * {
   box-sizing: border-box;
   margin: 0;
@@ -25,63 +16,91 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
-  background: var(--lux-dark);
-  color: var(--lux-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  background: #0a0a0f;
+  color: var(--text);
   line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
-
-  /* === GRAINY + GLOSSY BACKGROUND === */
   background-image: 
-    radial-gradient(circle at 25% 30%, rgba(0, 212, 200, 0.12) 0%, transparent 60%),
-    radial-gradient(circle at 75% 70%, rgba(255, 107, 0, 0.08) 0%, transparent 60%),
-    url("data:image/svg+xml,%3Csvg viewBox='0 0 300 300' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.72' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.18'/%3E%3C/svg%3E");
-  background-size: 200% 200%, 200% 200%, 280px 280px;
+    radial-gradient(circle at 20% 30%, rgba(0, 245, 212, 0.12) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(255, 94, 0, 0.08) 0%, transparent 50%);
   background-attachment: fixed;
 }
 
-/* ====================== GLASS CARDS ====================== */
-.card, .hisaab-card, .metric-card {
-  background: var(--lux-glass);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid var(--lux-border);
-  border-radius: 26px;
-  padding: 20px;
-  box-shadow: 
-    0 10px 40px -15px rgba(0, 0, 0, 0.75),
-    inset 0 1px 0 rgba(255,255,255,0.08);
-  transition: transform 0.25s cubic-bezier(0.23, 1, 0.32, 1);
-}
-
-.card:hover {
-  transform: translateY(-2px);
+.app-root {
+  min-height: 100vh;
+  background: #0a0a0f;
 }
 
 /* ====================== TOP BAR ====================== */
 .top-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 20px;
+  background: rgba(10, 10, 15, 0.95);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 20px;
   position: sticky;
   top: 0;
-  z-index: 500;
-  background: rgba(7, 11, 20, 0.92);
-  backdrop-filter: blur(16px);
-  border-bottom: 1px solid var(--lux-border);
+  z-index: 1000;
 }
 
-.mini-logo {
-  width: 44px;
-  height: 44px;
-  cursor: pointer;
-  transition: transform 0.3s ease;
+/* ====================== GLASS CARDS ====================== */
+.glass-card {
+  background: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  padding: 20px;
+  box-shadow: var(--neon-glow);
+  transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+  overflow: hidden;
 }
 
-.mini-logo:active {
-  transform: scale(0.85) rotate(-12deg);
+.glass-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 0 35px -8px rgb(0 245 212);
+}
+
+/* ====================== BUTTONS ====================== */
+.btn-primary {
+  background: linear-gradient(90deg, #00f5d4, #ff5e00);
+  background-size: 200% auto;
+  color: #000;
+  font-weight: 700;
+  border: none;
+  border-radius: 9999px;
+  padding: 16px 28px;
+  font-size: 16px;
+  box-shadow: var(--neon-glow);
+  transition: all 0.3s ease;
+  width: 100%;
+}
+
+.btn-primary:hover {
+  transform: scale(1.03);
+  background-position: 200% center;
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ====================== INPUTS ====================== */
+.input-modern {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  padding: 16px 20px;
+  color: white;
+  font-size: 16px;
+  width: 100%;
+  transition: all 0.3s ease;
+}
+
+.input-modern:focus {
+  outline: none;
+  border-color: var(--teal);
+  box-shadow: 0 0 0 4px rgba(0, 245, 212, 0.15);
+  background: rgba(0, 245, 212, 0.08);
 }
 
 /* ====================== BOTTOM NAV ====================== */
@@ -90,58 +109,10 @@ body {
   bottom: 0;
   left: 0;
   right: 0;
-  z-index: 1000;
-  background: rgba(7, 11, 20, 0.92);
+  background: rgba(10, 10, 15, 0.95);
   backdrop-filter: blur(24px);
-  border-top: 1px solid var(--lux-border);
-  display: flex;
-  justify-content: space-around;
-  padding: 12px 0 30px;
-}
-
-.nav-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  color: var(--lux-hint);
-  transition: all 0.3s ease;
-}
-
-.nav-item.active {
-  color: var(--logo-teal);
-}
-
-.nav-item span {
-  font-size: 10px;
-  font-weight: 700;
-  margin-top: 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-/* ====================== BUTTONS ====================== */
-.btn-primary {
-  background: var(--shining-gradient);
-  background-size: 200% auto;
-  animation: shine 4s linear infinite;
-  color: #fff;
-  font-weight: 800;
-  border: none;
-  padding: 18px;
-  border-radius: 20px;
-  width: 100%;
-  font-size: 16px;
-  box-shadow: 0 10px 30px -10px rgba(0, 212, 200, 0.5);
-}
-
-.btn-secondary {
-  background: rgba(255,255,255,0.06);
-  border: 1px solid var(--lux-border);
-  color: var(--lux-text);
-  padding: 18px;
-  border-radius: 20px;
-  font-weight: 700;
-  width: 100%;
+  border-top: 1px solid var(--border);
+  z-index: 1000;
 }
 
 /* ====================== ANIMATIONS ====================== */
@@ -149,11 +120,25 @@ body {
   to { background-position: 200% center; }
 }
 
-/* ====================== UTILITY ====================== */
-.app-container {
-  padding: 15px 20px 100px;
-  max-width: 600px;
-  margin: 0 auto;
+/* Utility for spin animation */
+.animate-spin {
+  animation: spin 1s linear infinite;
 }
 
-[dir="rtl"] { text-align: right; }
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Make sure images don't overflow */
+img {
+  display: block;
+  max-width: 100%;
+}
+
+/* Extra polish for Telegram Mini App */
+@media (max-width: 480px) {
+  .glass-card {
+    border-radius: 20px;
+  }
+}
