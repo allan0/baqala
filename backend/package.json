@@ -1,17 +1,5 @@
 {
   "name": "baqala-backend",
-  "version": "1.0.0",
-  "description": "Baqala Network Backend with Supabase",
-  "main": "bot.js",
-  "type": "commonjs",
-  "scripts": {
-    "start": "node bot.js",
-    "dev": "node bot.js"
-  },
-  "dependencies": {
-    "@supabase/supabase-js": "^2.45.0",
-    "axios": "^1.7.2"{
-  "name": "baqala-backend",
   "version": "1.2.0",
   "description": "Unified Baqala Network API & Telegram AI Bot",
   "main": "bot.js",
@@ -43,12 +31,4 @@
   ],
   "author": "Baqala Network",
   "license": "MIT"
-}
-    "cors": "^2.8.6",
-    "dotenv": "^17.3.1",
-    "ethers": "^6.16.0",
-    "express": "^4.19.2",
-    "openai": "^6.29.0",
-    "telegraf": "^4.16.3"
-  }
 }
