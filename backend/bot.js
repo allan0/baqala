@@ -32,7 +32,8 @@ const strings = {
     cancel: "❌ Cancel",
     no_items: "This section is currently empty.",
     lang_switched: "Language switched to English 🇺🇸",
-    open_cart: "🛒 Finish Order in App"
+    open_cart: "🛒 Finish Order in App",
+    processing: "Processing..."
   },
   ar: {
     welcome: (name) => `يا هلا بك يا ${name} في شبكة دكاكين! 🛒\n\nأنا مساعدك الذكي في الفريج. أقدر أشيك لك على الأسعار، أو تفتح الدكان وتطلب من التطبيق.`,
@@ -49,7 +50,8 @@ const strings = {
     cancel: "❌ إلغاء",
     no_items: "هذا القسم ما فيه بضاعة حالياً.",
     lang_switched: "تم تغيير اللغة إلى العربية 🇦🇪",
-    open_cart: "🛒 كمل الطلب في التطبيق"
+    open_cart: "🛒 كمل الطلب في التطبيق",
+    processing: "لحظات..."
   }
 };
 
@@ -89,12 +91,24 @@ bot.start(async (ctx) => {
   const payload = ctx.startPayload || ""; 
   const parts = payload.split('_');
   
-  // startapp format: mode_storeId_lang
-  const storeId = parts[1] || 'default';
-  const lang = parts[2] || 'en';
+  // startapp format: mode_storeId_lang OR direct start
+  const storeId = payload.startsWith('st_') ? parts[1] : 'default';
+  const lang = payload.includes('_ln_') ? parts[parts.length - 1] : 'en';
 
-  await sendMenu(ctx, lang, storeId);
+  // FIX: Provide immediate feedback to user
+  const processingMessage = await ctx.reply(strings[lang].processing);
+
+  try {
+    await sendMenu(ctx, lang, storeId);
+  } catch (error) {
+    console.error("Error in /start handler:", error);
+    ctx.reply("Sorry, something went wrong. Please try again.");
+  } finally {
+    // Clean up the "Processing..." message
+    ctx.telegram.deleteMessage(ctx.chat.id, processingMessage.message_id);
+  }
 });
+
 
 // ==========================================
 // 2. INVENTORY BROWSING ACTION
@@ -201,13 +215,42 @@ bot.action('cancel_order', (ctx) => {
 });
 
 // ==========================================
-// 5. SERVER RUNTIME (EXPRESS + BOT)
+// 5. NOTIFICATION SYSTEM (NEW)
+// ==========================================
+
+/**
+ * Sends a proactive message to a user.
+ * @param {string|number} telegramId The user's Telegram ID.
+ * @param {string} message The message to send (supports Markdown).
+ * @param {object} [keyboard] Optional Telegraf keyboard Markup.
+ */
+const sendNotification = async (telegramId, message, keyboard) => {
+  try {
+    await bot.telegram.sendMessage(telegramId, message, {
+      parse_mode: 'Markdown',
+      ...keyboard,
+    });
+    return { success: true };
+  } catch (error) {
+    console.error(`Failed to send notification to ${telegramId}:`, error);
+    return { success: false, error };
+  }
+};
+
+
+// ==========================================
+// 6. SERVER RUNTIME (EXPRESS + BOT)
 // ==========================================
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use('/api', routes); // SHARED ROUTES MOUNT
+
+// Pass bot instance to routes for notifications
+app.use('/api', (req, res, next) => {
+  req.bot = { sendNotification };
+  next();
+}, routes);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
@@ -219,3 +262,9 @@ bot.launch().then(() => console.log('🤖 @Baqalas_bot is Online'));
 // Graceful Shutdown
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
+
+// Export bot for use in other modules (like routes.js for notifications)
+module.exports = {
+  bot,
+  sendNotification,
+};

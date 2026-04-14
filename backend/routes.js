@@ -53,6 +53,38 @@ router.post('/user/update', async (req, res) => {
 // 2. MERCHANT HUB (IDENTITY & CRM)
 // ==========================================
 
+// Get Baqala by Owner ID + CRM data (FIX FOR VENDOR DASHBOARD)
+router.get('/baqala/owner/:ownerId', async (req, res) => {
+  const { ownerId } = req.params;
+  try {
+    // 1. Find the baqala owned by this telegram ID
+    const { data: baqala, error: baqalaError } = await supabase
+      .from('baqalas')
+      .select('*, inventory(*)')
+      .eq('owner_telegram_id', ownerId.toString())
+      .single();
+
+    if (baqalaError || !baqala) {
+      console.error('Baqala not found for owner:', ownerId, baqalaError);
+      return res.status(404).json({ error: "No baqala found for this owner." });
+    }
+
+    // 2. Find all hisaab applications (clients) for this baqala
+    const { data: clients, error: clientsError } = await supabase
+      .from('hisaab_applications')
+      .select('*, users(name, photo_url)')
+      .eq('baqala_id', baqala.id);
+    
+    if (clientsError) throw clientsError;
+
+    res.json({ success: true, baqala, clients });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 // Register Baqala
 router.post('/baqala/register', async (req, res) => {
   const { name, owner_id, wallet_address } = req.body;
@@ -81,10 +113,13 @@ router.post('/baqala/register', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Update Store Logic (Photos, Discounts, Fazaa Toggle)
+// Update Store Logic (Photos, Discounts, Fazaa Toggle, and NEW PROFILE FIELDS)
 router.post('/baqala/:baqalaId/settings', async (req, res) => {
   const { baqalaId } = req.params;
-  const { name, crypto_discount, images, wallet_address, accepts_fazaa } = req.body;
+  const { 
+    name, crypto_discount, images, wallet_address, accepts_fazaa,
+    phone_number, description, operating_hours, telegram_chat_link, status_message 
+  } = req.body;
 
   try {
     const { data, error } = await supabase
@@ -94,7 +129,12 @@ router.post('/baqala/:baqalaId/settings', async (req, res) => {
         crypto_discount: parseInt(crypto_discount), 
         images: images || [], 
         wallet_address,
-        accepts_fazaa: !!accepts_fazaa
+        accepts_fazaa: !!accepts_fazaa,
+        phone_number,
+        description,
+        operating_hours,
+        telegram_chat_link,
+        status_message
       })
       .eq('id', baqalaId)
       .select().single();
@@ -115,6 +155,13 @@ router.post('/hisaab/approve', async (req, res) => {
       .select().single();
 
     if (error) throw error;
+
+    // TODO: Add notification logic here
+    // if (status === 'approved') {
+    //   const app = data;
+    //   createNotification({ telegram_id: app.telegram_id, ... })
+    // }
+
     res.json({ success: true, application: data });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

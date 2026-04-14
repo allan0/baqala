@@ -19,6 +19,7 @@ const API_URL = "https://baqala-i2oi.onrender.com";
 
 const translations = {
   en: {
+    app_name: "Baqalas",
     role_customer: "Resident",
     role_merchant: "Baqala Owner",
     nav_home: "Neighborhood",
@@ -30,15 +31,16 @@ const translations = {
     disconnect: "Unlink",
     security: "Identity & Security",
     intro_sub: "THE DIGITAL HISAB NETWORK",
-    wallet_evm: "EVM (MetaMask)",
     wallet_ton: "TON (Tonkeeper/Wallet)",
     edit_profile: "Edit Profile",
     save: "Save",
     name_label: "Display Name",
     wallet_connected: "Connected",
-    no_wallet: "Wallet not found. Please install Tonkeeper or MetaMask."
+    no_wallet: "Wallet not found. Please install Tonkeeper or use from Telegram.",
+    notifications: "Notifications"
   },
   ar: {
+    app_name: "بقالات",
     role_customer: "ساكن",
     role_merchant: "راعي الدكان",
     nav_home: "الفريج",
@@ -50,13 +52,13 @@ const translations = {
     disconnect: "قطع الاتصال",
     security: "الهوية والأمان",
     intro_sub: "شبكة الحساب الرقمي",
-    wallet_evm: "محفظة EVM",
     wallet_ton: "محفظة TON",
     edit_profile: "تعديل الملف",
     save: "حفظ",
     name_label: "الاسم المستعار",
     wallet_connected: "متصل",
-    no_wallet: "المحفظة غير متوفرة. يرجى تثبيت Tonkeeper."
+    no_wallet: "المحفظة غير متوفرة. يرجى تثبيت Tonkeeper أو استخدامها من داخل تيليجرام.",
+    notifications: "الإشعارات"
   }
 };
 
@@ -71,11 +73,15 @@ export default function App() {
   const [role, setRole] = useState(localStorage.getItem('baqala_role') || 'customer');
   const [activeTab, setActiveTab] = useState('home');
   const [showIntro, setShowIntro] = useState(true);
+  const [showTour, setShowTour] = useState(false); // For new user tour
 
   // --- WALLET STATE ---
   const [walletAddress, setWalletAddress] = useState(localStorage.getItem('baqala_wallet') || null);
   const [walletType, setWalletType] = useState(localStorage.getItem('baqala_wallet_type') || null);
   const [showWalletModal, setShowWalletModal] = useState(false);
+  
+  // --- NOTIFICATIONS ---
+  const [showNotifications, setShowNotifications] = useState(false);
 
   const t = useMemo(() => translations[lang], [lang]);
   const isRTL = lang === 'ar';
@@ -93,6 +99,13 @@ export default function App() {
       WebApp.setHeaderColor('#0a0a0f');
     }
     document.documentElement.dir = isRTL ? 'rtl' : 'ltr';
+    
+    // Welcome tour logic
+    const tourCompleted = localStorage.getItem('baqala_tour_completed');
+    if (!tourCompleted) {
+      // setShowTour(true); // Will be enabled once tour component is built
+    }
+    
     const timer = setTimeout(() => setShowIntro(false), 2000);
     return () => clearTimeout(timer);
   }, [isRTL]);
@@ -112,39 +125,25 @@ export default function App() {
     }
   }, [activeTab, role]);
 
-  // --- REAL WALLET CONNECT LOGIC ---
+  // --- REAL WALLET CONNECT LOGIC (TON-ONLY) ---
   const connectTON = async () => {
-    // TON detection for Telegram browser
-    const tonkeeper = window.ton; 
-    if (tonkeeper) {
+    const ton = window.ton || window.ton_provider; 
+    if (ton) {
       try {
-        const accounts = await tonkeeper.send('ton_requestAccounts');
+        const accounts = await ton.send('ton_requestAccounts');
         const addr = accounts[0];
         setWalletAddress(addr);
         setWalletType('TON');
         localStorage.setItem('baqala_wallet', addr);
         localStorage.setItem('baqala_wallet_type', 'TON');
         setShowWalletModal(false);
-      } catch (e) { console.error(e); }
+      } catch (e) { 
+        console.error(e);
+        if (WebApp?.isVersionAtLeast('6.2')) WebApp.showAlert(e.message);
+      }
     } else {
       if (WebApp?.isVersionAtLeast('6.2')) WebApp.showAlert(t.no_wallet);
       else alert(t.no_wallet);
-    }
-  };
-
-  const connectEVM = async () => {
-    if (window.ethereum) {
-      try {
-        const provider = new ethers.BrowserProvider(window.ethereum);
-        const accounts = await provider.send("eth_requestAccounts", []);
-        setWalletAddress(accounts[0]);
-        setWalletType('EVM');
-        localStorage.setItem('baqala_wallet', accounts[0]);
-        localStorage.setItem('baqala_wallet_type', 'EVM');
-        setShowWalletModal(false);
-      } catch (e) { console.error(e); }
-    } else {
-      alert(t.no_wallet);
     }
   };
 
@@ -156,7 +155,6 @@ export default function App() {
   };
 
   const saveProfile = async () => {
-    // Logic to sync display name to backend
     setIsEditingProfile(false);
     if (WebApp?.isVersionAtLeast('6.2')) WebApp.showAlert("Profile Updated!");
   };
@@ -166,7 +164,9 @@ export default function App() {
       <div className="fixed inset-0 bg-[#0a0a0f] flex items-center justify-center z-[9999]">
         <div className="text-center">
           <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2 }} className="text-7xl mb-4">🏪</motion.div>
-          <h1 className="text-4xl font-black bg-gradient-to-r from-[#00f5d4] to-[#ff5e00] bg-clip-text text-transparent italic">Baqalas</h1>
+          <h1 className="text-4xl font-black bg-gradient-to-r from-[#00f5d4] to-[#ff5e00] bg-clip-text text-transparent italic animate-gradient">
+            {isRTL ? "بقالات" : "Baqalas"}
+          </h1>
           <p className="text-[#94a3b8] tracking-[5px] text-[9px] mt-2 font-bold uppercase">{t.intro_sub}</p>
         </div>
       </div>
@@ -180,31 +180,22 @@ export default function App() {
       <header className="sticky top-0 z-40 bg-[#0a0a0f]/80 backdrop-blur-xl border-b border-white/5">
         <div className="max-w-[500px] mx-auto flex items-center justify-between px-5 py-4">
           <div className="flex items-center gap-3">
-             <button onClick={() => setLang(lang === 'en' ? 'ar' : 'en')} className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center border border-white/10 active:scale-90 transition-all">
-               <Languages size={18} className="text-teal-400" />
-             </button>
-             <div onClick={toggleRole} className="cursor-pointer">
-               <div className="text-[8px] font-black text-[#ff5e00] tracking-widest uppercase leading-none mb-1">{role === 'customer' ? t.role_customer : t.role_merchant}</div>
-               <div className="font-black text-sm leading-none flex items-center gap-1">
-                 {role === 'vendor' && <StoreIcon size={12} className="text-teal-400" />}
-                 {user?.photo_url ? (
-                   <img src={user.photo_url} className="w-5 h-5 rounded-full border border-white/20" alt="Avatar" />
-                 ) : (
-                   <User size={14} className="text-[#94a3b8]" />
-                 )}
-                 {displayName || 'Guest'}
-               </div>
+             <div className="flex items-center gap-2" onClick={toggleRole}>
+                <motion.div whileTap={{ scale: 0.8, rotate: -15 }}>
+                   <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center border border-white/10 text-xl">🏪</div>
+                </motion.div>
+                <h2 className="text-xl font-black bg-gradient-to-r from-[#00f5d4] to-[#ff5e00] bg-clip-text text-transparent italic">{t.app_name}</h2>
              </div>
           </div>
 
-          <button
-            onClick={() => setShowWalletModal(true)}
-            className={`text-[9px] font-black uppercase tracking-tight px-3 py-2 rounded-lg border transition-all ${
-              walletAddress ? 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10' : 'border-white/10 text-white/50 bg-white/5 shadow-2xl'
-            }`}
-          >
-            {walletAddress ? t.wallet_connected : t.connect_wallet}
-          </button>
+          <div className="flex items-center gap-2">
+             <button onClick={() => setLang(lang === 'en' ? 'ar' : 'en')} className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center border border-white/10 active:scale-90 transition-all">
+               <Languages size={18} className="text-white/40" />
+             </button>
+             <button onClick={() => setShowNotifications(true)} className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center border border-white/10 active:scale-90 transition-all">
+               <Bell size={18} className="text-white/40" />
+             </button>
+          </div>
         </div>
       </header>
 
@@ -258,23 +249,23 @@ export default function App() {
                   </div>
 
                   <div className="glass-card !p-0 overflow-hidden">
-                    <div className="p-6 border-b border-white/5">
+                    <div className="p-6">
                        <h3 className="text-xs font-black uppercase tracking-[3px] text-[#94a3b8] mb-1">Financial</h3>
-                       <p className="text-[10px] opacity-40 uppercase">Active Neighborhood Settlements</p>
+                       <p className="text-[10px] opacity-40 uppercase">Your Digital Wallet & Benefits</p>
                     </div>
-                    <div className="p-6 space-y-4">
-                       <div className="flex justify-between items-center">
-                         <div className="flex items-center gap-3">
-                            <CreditCard size={18} className="text-orange-500" />
-                            <span className="text-sm font-bold uppercase">Credit Tabs</span>
-                         </div>
-                         <span className="font-black text-teal-400">4 Active</span>
-                       </div>
+                    <div className="p-6 space-y-4 border-t border-white/5">
+                       <button onClick={() => setShowWalletModal(true)} className={`w-full flex justify-between items-center text-left p-4 rounded-2xl border transition-all ${walletAddress ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-white/5 border-white/10'}`}>
+                          <div className="flex items-center gap-3">
+                            <WalletIcon size={18} className={walletAddress ? 'text-emerald-400' : 'text-white/30'} />
+                            <span className="text-sm font-bold uppercase">{walletAddress ? t.wallet_connected : t.connect_wallet}</span>
+                          </div>
+                          <span className="font-mono text-[9px] text-white/30">{walletAddress ? `${walletAddress.slice(0, 4)}..${walletAddress.slice(-4)}` : t.wallet_ton}</span>
+                       </button>
                     </div>
                   </div>
 
                   {walletAddress && (
-                    <button onClick={() => { setWalletAddress(null); setWalletType(null); localStorage.removeItem('baqala_wallet'); }} className="w-full p-5 rounded-[24px] bg-red-500/5 text-red-500 font-black uppercase text-[10px] border border-red-500/10 active:scale-95 transition-all flex items-center justify-center gap-3">
+                    <button onClick={() => { setWalletAddress(null); setWalletType(null); localStorage.removeItem('baqala_wallet'); localStorage.removeItem('baqala_wallet_type'); }} className="w-full p-5 rounded-[24px] bg-red-500/5 text-red-500 font-black uppercase text-[10px] border border-red-500/10 active:scale-95 transition-all flex items-center justify-center gap-3">
                       <LogOut size={16}/> {t.disconnect} {walletType}
                     </button>
                   )}
@@ -316,14 +307,7 @@ export default function App() {
                 <button onClick={connectTON} className="w-full flex items-center justify-between p-6 bg-white/5 border border-white/10 rounded-[28px] hover:bg-white/10 active:scale-95 transition-all">
                   <div className="flex items-center gap-5">
                     <Smartphone size={32} className="text-blue-400"/>
-                    <div className="text-left"><div className="font-black text-xl italic uppercase leading-none">TON Hub</div><div className="text-[9px] opacity-40 uppercase font-black tracking-widest mt-2">Tonkeeper / Wallet</div></div>
-                  </div>
-                  <Globe size={20} className="opacity-10" />
-                </button>
-                <button onClick={connectEVM} className="w-full flex items-center justify-between p-6 bg-white/5 border border-white/10 rounded-[28px] hover:bg-white/10 active:scale-95 transition-all">
-                  <div className="flex items-center gap-5">
-                    <WalletIcon size={32} className="text-orange-400"/>
-                    <div className="text-left"><div className="font-black text-xl italic uppercase leading-none">EVM Bridge</div><div className="text-[9px] opacity-40 uppercase font-black tracking-widest mt-2">MetaMask / Browser</div></div>
+                    <div className="text-left"><div className="font-black text-xl italic uppercase leading-none">TON Hub</div><div className="text-[9px] opacity-40 uppercase font-black tracking-widest mt-2">{t.wallet_ton}</div></div>
                   </div>
                   <Globe size={20} className="opacity-10" />
                 </button>
