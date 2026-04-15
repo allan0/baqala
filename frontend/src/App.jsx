@@ -1,5 +1,5 @@
 // ================================================
-// frontend/src/App.jsx - VERSION 17 (FINAL PRODUCTION)
+// frontend/src/App.jsx - VERSION 18 (FINAL PRODUCTION)
 // ================================================
 import React, { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -44,7 +44,7 @@ const translations = {
     login_guest: "الدخول كضيف",
     email_placeholder: "بريدك الإلكتروني...",
     loading_text: "جاري الاتصال بالشبكة",
-    role_resident: "جار موثق",
+    role_resident: "جار موثوق",
     role_merchant: "مدير الدكان",
     nav_home: "الفريج",
     nav_ledger: "الحساب",
@@ -159,21 +159,31 @@ export default function App() {
   // ==========================================
 
   const handleGmailLogin = async () => {
+    // FIX: Force a clean origin with no trailing slash to prevent 400 errors
+    const redirectUrl = window.location.origin.replace(/\/$/, "");
+    
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: window.location.origin }
+      options: { 
+        redirectTo: redirectUrl 
+      }
     });
-    if (error) alert(error.message);
+    if (error) {
+        console.error("OAuth Error:", error.message);
+        alert(error.message);
+    }
   };
 
   const handleGuestLogin = async (e) => {
     e.preventDefault();
     if (!emailInput) return;
     
+    const redirectUrl = window.location.origin.replace(/\/$/, "");
+    
     // Sends a Magic Link to user's email
     const { error } = await supabase.auth.signInWithOtp({
       email: emailInput,
-      options: { emailRedirectTo: window.location.origin }
+      options: { emailRedirectTo: redirectUrl }
     });
 
     if (error) alert(error.message);
@@ -239,7 +249,11 @@ export default function App() {
           </div>
           
           <button 
-            onClick={() => setLang(lang === 'en' ? 'ar' : 'en')}
+            onClick={() => {
+                const nLang = lang === 'en' ? 'ar' : 'en';
+                setLang(nLang);
+                localStorage.setItem('baqala_lang', nLang);
+            }}
             className="mt-12 text-[10px] font-black text-teal-400/50 flex items-center gap-2 mx-auto uppercase tracking-widest"
           >
             <Languages size={14}/> {lang === 'en' ? 'العربية' : 'English'}
@@ -253,7 +267,7 @@ export default function App() {
   return (
     <div className={`min-h-screen bg-[#0a0a0f] text-white flex flex-col overflow-hidden font-sans select-none ${isRTL ? 'font-arabic' : ''}`}>
       
-      {/* Top Navigation */}
+      {/* Top Header */}
       <header className="px-6 py-5 flex justify-between items-center bg-[#0a0a0f]/80 backdrop-blur-2xl sticky top-0 z-50 border-b border-white/5">
         <div className="flex items-center gap-4">
           {profile?.avatar_url ? (
@@ -272,7 +286,11 @@ export default function App() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={() => setLang(lang === 'en' ? 'ar' : 'en')} className="p-2.5 bg-white/5 rounded-xl border border-white/5 text-white/40">
+          <button onClick={() => {
+              const nLang = lang === 'en' ? 'ar' : 'en';
+              setLang(nLang);
+              localStorage.setItem('baqala_lang', nLang);
+          }} className="p-2.5 bg-white/5 rounded-xl border border-white/5 text-white/40">
              <Languages size={18} />
           </button>
           <button onClick={handleLogout} className="p-2.5 bg-red-500/10 rounded-xl border border-red-500/10 text-red-500/60 transition-transform active:scale-90">
@@ -315,7 +333,7 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Gmail Link Status / Action (Requested) */}
+                  {/* Gmail Link Status / Action */}
                   <div className="space-y-3">
                      {!profile?.email ? (
                         <button onClick={handleGmailLogin} className="w-full flex items-center justify-between p-5 bg-white text-black rounded-[24px] group active:scale-95 transition-all">
