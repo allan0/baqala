@@ -1,6 +1,6 @@
 // ================================================
 // frontend/src/components/CustomerDashboard.jsx
-// VERSION 21 (TOTAL Hub RESTORATION)
+// VERSION 22 (FULL RESTORATION & DYNAMIC SYNC)
 // ================================================
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -30,9 +30,9 @@ const loc = {
     view_tab: "Review Tab",
     confirm_hisaab: "Commit to Ledger",
     checkout_locked: "Identity Required",
-    guest_msg: "Link your identity in the Profile tab to enable shopping on credit.",
+    guest_msg: "Link your identity in the Profile tab to enable credit shopping.",
     catalog: "Store Shelves",
-    verified: "Verified Baqala",
+    verified: "Verified Merchant",
     empty_hub: "No stores registered in this area yet."
   },
   ar: {
@@ -68,10 +68,10 @@ export default function CustomerDashboard({ user, lang, setActiveTab }) {
   const t = useMemo(() => loc[lang], [lang]);
   const isRTL = lang === 'ar';
   
-  // Identity Status: Determine if the user is an unlinked Guest
+  // Guard check: User is guest if they have no Telegram or Email link
   const isGuest = !user?.telegram_id && !user?.email;
 
-  // 1. Discovery Engine: Fetch real stores from the DB
+  // 1. Fetch Real Neighborhood Data (No Hardcoding)
   const fetchNeighborhood = async () => {
     setIsLoading(true);
     try {
@@ -158,7 +158,7 @@ export default function CustomerDashboard({ user, lang, setActiveTab }) {
     <div className={`px-5 ${isRTL ? 'text-right' : 'text-left'}`}>
       
       {!selectedStore ? (
-        /* --- VIEW 1: Hub DISCOVERY --- */
+        /* --- VIEW 1: Hub DISCOVERY (DYNAMIC STORE LIST) --- */
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
           <div className="relative pt-2">
             <Search className={`absolute ${isRTL ? 'right-5' : 'left-5'} top-[58%] -translate-y-1/2 text-white/20`} size={20} />
@@ -189,7 +189,7 @@ export default function CustomerDashboard({ user, lang, setActiveTab }) {
                     <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0f] to-transparent opacity-90" />
                 </div>
                 <div className="p-8 flex justify-between items-center relative z-10">
-                  <div>
+                  <div className={isRTL ? 'text-right' : 'text-left'}>
                     <h4 className="text-2xl font-black italic tracking-tight mb-2 leading-none text-white">{store.name}</h4>
                     <p className="text-teal-400 text-[9px] font-black uppercase tracking-widest flex items-center gap-2">
                        <span className="w-2 h-2 bg-teal-400 rounded-full animate-pulse" /> {t.open}
@@ -210,7 +210,7 @@ export default function CustomerDashboard({ user, lang, setActiveTab }) {
           </div>
         </motion.div>
       ) : (
-        /* --- VIEW 2: STORE Hub & SHELVES --- */
+        /* --- VIEW 2: Hub STORE DETAIL & REAL SHELVES --- */
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="pb-32">
           <button 
             onClick={() => setSelectedStore(null)} 
@@ -222,7 +222,7 @@ export default function CustomerDashboard({ user, lang, setActiveTab }) {
           <div className="glass-card !p-10 mb-12 border-teal-400/20 relative overflow-hidden bg-gradient-to-br from-teal-400/5 to-transparent shadow-2xl rounded-[50px]">
             <div className="absolute -right-8 -top-8 text-teal-400/5 rotate-12"><Store size={220}/></div>
             <div className="flex justify-between items-center relative z-10">
-               <div>
+               <div className={isRTL ? 'text-right' : 'text-left'}>
                   <h2 className="text-4xl font-black italic mb-4 tracking-tighter leading-tight text-white">{selectedStore.name}</h2>
                   <div className="flex items-center gap-3">
                     <div className="p-1 bg-blue-500/20 rounded-lg"><CheckCircle2 size={14} className="text-blue-400" /></div>
@@ -233,7 +233,7 @@ export default function CustomerDashboard({ user, lang, setActiveTab }) {
             </div>
           </div>
 
-          {/* HISAAB STATUS SECTION */}
+          {/* HISAAB STATUS Hub */}
           {!selectedStore.isApproved && (
             <div className="glass-card !p-10 border-orange-500/20 bg-orange-500/[0.02] mb-12 shadow-xl rounded-[40px] overflow-hidden relative">
                <Zap size={120} className="absolute -left-10 -top-10 text-orange-500/5 rotate-12" />
@@ -241,10 +241,10 @@ export default function CustomerDashboard({ user, lang, setActiveTab }) {
                   <div className="w-20 h-20 bg-orange-500/10 rounded-full flex items-center justify-center text-orange-500 border border-orange-500/20 shadow-inner shrink-0">
                     <Lock size={36}/>
                   </div>
-                  <div>
+                  <div className={isRTL ? 'text-right' : 'text-left'}>
                     <p className="font-black text-base uppercase italic text-white/90 leading-tight mb-2 tracking-tight">{t.checkout_locked}</p>
                     <p className="text-[11px] text-white/40 font-medium leading-relaxed uppercase tracking-widest">
-                       Approval by ra'i al-baqala {selectedStore.name} is required to open a credit line.
+                       Verification by ra'i al-baqala {selectedStore.name} is required to enable digital credit.
                     </p>
                   </div>
                </div>
@@ -264,23 +264,23 @@ export default function CustomerDashboard({ user, lang, setActiveTab }) {
             </div>
           )}
 
-          {/* SHELVES GRID */}
+          {/* DYNAMIC SHELVES GRID */}
           <div className="flex items-center justify-between mb-10 px-4">
              <h3 className="text-[14px] font-black text-white/40 uppercase tracking-[6px] italic">{t.catalog}</h3>
              <ShoppingBag size={20} className="text-white/10" />
           </div>
 
           <div className="grid grid-cols-2 gap-8 px-1">
-            {(selectedStore.inventory || []).length === 0 ? (
+            {(!selectedStore.inventory || selectedStore.inventory.length === 0) ? (
                <div className="col-span-2 py-20 text-center text-white/5 text-[11px] font-black uppercase tracking-[10px] italic border border-dashed border-white/5 rounded-[60px]">Private Shelves</div>
             ) : (
               selectedStore.inventory.map(item => (
                 <div key={item.id} className="glass-card !p-8 border-white/5 flex flex-col justify-between hover:border-teal-400/20 transition-all group rounded-[40px] bg-white/[0.01]">
-                  <div>
+                  <div className="flex flex-col items-center">
                     <div className="w-full aspect-square bg-black/60 rounded-full mb-8 flex items-center justify-center text-5xl shadow-inner border border-white/5 group-hover:scale-110 group-hover:rotate-12 transition-transform duration-700">🛍️</div>
-                    <h5 className="font-black text-[14px] leading-tight mb-6 h-12 line-clamp-2 italic text-white/95 px-2">{item.name}</h5>
+                    <h5 className="font-black text-[14px] leading-tight mb-6 h-12 text-center line-clamp-2 italic text-white/95 px-2">{item.name}</h5>
                   </div>
-                  <div className="flex items-center justify-between pt-6 border-t border-white/5">
+                  <div className="flex items-center justify-between pt-6 border-t border-white/5 w-full">
                     <p className="text-teal-400 font-black text-lg tracking-tighter italic">AED {parseFloat(item.price).toFixed(2)}</p>
                     <button 
                       onClick={() => addToCart(item)}
@@ -296,7 +296,7 @@ export default function CustomerDashboard({ user, lang, setActiveTab }) {
         </motion.div>
       )}
 
-      {/* FLOAT ACTION: CART PREVIEW */}
+      {/* FLOAT: Hub CART PREVIEW */}
       <AnimatePresence>
         {cart.length > 0 && (
           <motion.div initial={{ y: 140, scale: 0.8 }} animate={{ y: 0, scale: 1 }} exit={{ y: 140, scale: 0.8 }} className="fixed bottom-32 left-0 right-0 px-10 z-50">
@@ -305,7 +305,7 @@ export default function CustomerDashboard({ user, lang, setActiveTab }) {
                 <ShoppingCart size={32} />
                 <span className="font-black italic uppercase text-sm tracking-[3px]">{t.view_tab} ({cart.length})</span>
               </div>
-              <span className="bg-black/50 px-6 py-2.5 rounded-full text-base font-black border border-white/20 tracking-tighter italic text-teal-400">
+              <span className="bg-black/50 px-6 py-2.5 rounded-full text-lg font-black border border-white/20 tracking-tighter italic text-teal-400">
                 AED {cart.reduce((s,i) => s + (i.price * i.qty), 0).toFixed(2)}
               </span>
             </button>
@@ -319,7 +319,7 @@ export default function CustomerDashboard({ user, lang, setActiveTab }) {
           <div className="fixed inset-0 z-[101] flex items-end justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowCart(false)} className="absolute inset-0 bg-black/95 backdrop-blur-2xl" />
             <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: 'spring', damping: 30, stiffness: 200 }} className="relative w-full max-w-[500px] bg-[#0a0a0f] rounded-t-[70px] p-12 pb-16 border-t border-white/10 flex flex-col shadow-[0_-40px_120px_rgba(0,0,0,0.9)]">
-              <div className="w-20 h-1.5 bg-white/10 rounded-full mx-auto mb-12" />
+              <div className="w-20 h-1.5 bg-white/20 rounded-full mx-auto mb-12" />
               <div className="flex justify-between items-center mb-16">
                 <h2 className="text-4xl font-black italic uppercase tracking-tighter text-white">Grid Order</h2>
                 <button onClick={() => setCart([])} className="p-5 bg-red-500/10 text-red-500 rounded-full border border-red-500/10 active:scale-90 transition-all"><Trash2 size={32}/></button>
@@ -330,7 +330,7 @@ export default function CustomerDashboard({ user, lang, setActiveTab }) {
                   <div key={idx} className="flex justify-between items-center border-b border-white/5 pb-8">
                     <div className="flex items-center gap-8">
                        <div className="w-14 h-14 bg-teal-400/10 rounded-full flex items-center justify-center font-black text-lg text-teal-400 border border-teal-400/20">{item.qty}x</div>
-                       <span className="font-bold text-xl text-white/90 italic">{item.name}</span>
+                       <span className="font-bold text-xl text-white/90 italic leading-none">{item.name}</span>
                     </div>
                     <span className="text-teal-400 font-black text-xl italic tracking-tighter">AED {(item.price * item.qty).toFixed(2)}</span>
                   </div>
@@ -344,7 +344,7 @@ export default function CustomerDashboard({ user, lang, setActiveTab }) {
                         <p className="text-base font-black uppercase tracking-[5px]">{t.checkout_locked}</p>
                     </div>
                     <p className="text-[12px] font-bold text-white/50 uppercase tracking-widest leading-loose px-4">
-                       Direct commitment to the neighborhood ledger requires verified store owner approval.
+                       Direct order commitment to the digital ledger requires store owner verification.
                     </p>
                 </div>
               ) : (
