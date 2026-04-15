@@ -1,6 +1,6 @@
 // ================================================
 // frontend/src/components/CustomerDashboard.jsx
-// VERSION 20 (FULL RESTORATION & IDENTITY GUARD)
+// VERSION 21 (TOTAL Hub RESTORATION)
 // ================================================
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -18,7 +18,7 @@ const API_URL = import.meta.env.VITE_API_URL || "https://baqala-i2oi.onrender.co
 const loc = {
   en: {
     search: "Search neighborhood stores...",
-    nearby: "THE Hub (NEIGHBORHOOD)",
+    nearby: "NEIGHBORHOOD Hub",
     open: "Active Now",
     back: "Back to Hub",
     apply_hisaab: "Open Hisaab Tab",
@@ -32,14 +32,14 @@ const loc = {
     checkout_locked: "Identity Required",
     guest_msg: "Link your identity in the Profile tab to enable shopping on credit.",
     catalog: "Store Shelves",
-    verified: "Verified Merchant",
+    verified: "Verified Baqala",
     empty_hub: "No stores registered in this area yet."
   },
   ar: {
     search: "دور على دكان بالفريج...",
     nearby: "دكاكين فريجنا",
     open: "نشط الآن",
-    back: "رجوع للمركز",
+    back: "رجوع",
     apply_hisaab: "فتح حساب دين",
     pending_hisaab: "قيد المراجعة",
     approved_hisaab: "جار موثوق",
@@ -68,10 +68,10 @@ export default function CustomerDashboard({ user, lang, setActiveTab }) {
   const t = useMemo(() => loc[lang], [lang]);
   const isRTL = lang === 'ar';
   
-  // Guard check: User is guest if they have no Telegram or Email link
+  // Identity Status: Determine if the user is an unlinked Guest
   const isGuest = !user?.telegram_id && !user?.email;
 
-  // 1. Fetch Real Data from Grid
+  // 1. Discovery Engine: Fetch real stores from the DB
   const fetchNeighborhood = async () => {
     setIsLoading(true);
     try {
@@ -91,12 +91,12 @@ export default function CustomerDashboard({ user, lang, setActiveTab }) {
 
   useEffect(() => { fetchNeighborhood(); }, [user?.id]);
 
-  // 2. Identity Guard logic
+  // 2. Identity Guard: Prevents guest transactions
   const handleProtectedAction = (callback) => {
     if (isGuest) {
       if (WebApp?.HapticFeedback) WebApp.HapticFeedback.notificationOccurred('error');
       alert(t.guest_msg);
-      setActiveTab('profile'); // Direct user to the Identity Hub (Me)
+      setActiveTab('profile'); // Send them to the Me tab
       return;
     }
     callback();
@@ -133,7 +133,7 @@ export default function CustomerDashboard({ user, lang, setActiveTab }) {
         setSelectedStore(null);
         setActiveTab('hisaab'); 
         if (WebApp?.HapticFeedback) WebApp.HapticFeedback.notificationOccurred('success');
-      } catch (e) { alert("Checkout failed. Check your connection."); }
+      } catch (e) { alert("Checkout failed. Please retry."); }
       finally { setIsActionLoading(false); }
     });
   };
@@ -233,7 +233,7 @@ export default function CustomerDashboard({ user, lang, setActiveTab }) {
             </div>
           </div>
 
-          {/* HISAAB STATUS Hub */}
+          {/* HISAAB STATUS SECTION */}
           {!selectedStore.isApproved && (
             <div className="glass-card !p-10 border-orange-500/20 bg-orange-500/[0.02] mb-12 shadow-xl rounded-[40px] overflow-hidden relative">
                <Zap size={120} className="absolute -left-10 -top-10 text-orange-500/5 rotate-12" />
@@ -242,9 +242,9 @@ export default function CustomerDashboard({ user, lang, setActiveTab }) {
                     <Lock size={36}/>
                   </div>
                   <div>
-                    <p className="font-black text-lg uppercase italic text-white/90 leading-tight mb-2 tracking-tight">{t.checkout_locked}</p>
+                    <p className="font-black text-base uppercase italic text-white/90 leading-tight mb-2 tracking-tight">{t.checkout_locked}</p>
                     <p className="text-[11px] text-white/40 font-medium leading-relaxed uppercase tracking-widest">
-                       Verification by ra'i al-baqala is required to open a digital credit line.
+                       Approval by ra'i al-baqala {selectedStore.name} is required to open a credit line.
                     </p>
                   </div>
                </div>
@@ -275,7 +275,7 @@ export default function CustomerDashboard({ user, lang, setActiveTab }) {
                <div className="col-span-2 py-20 text-center text-white/5 text-[11px] font-black uppercase tracking-[10px] italic border border-dashed border-white/5 rounded-[60px]">Private Shelves</div>
             ) : (
               selectedStore.inventory.map(item => (
-                <div key={item.id} className="glass-card !p-8 border-white/5 flex flex-col justify-between hover:border-teal-400/30 transition-all group rounded-[40px] bg-white/[0.01]">
+                <div key={item.id} className="glass-card !p-8 border-white/5 flex flex-col justify-between hover:border-teal-400/20 transition-all group rounded-[40px] bg-white/[0.01]">
                   <div>
                     <div className="w-full aspect-square bg-black/60 rounded-full mb-8 flex items-center justify-center text-5xl shadow-inner border border-white/5 group-hover:scale-110 group-hover:rotate-12 transition-transform duration-700">🛍️</div>
                     <h5 className="font-black text-[14px] leading-tight mb-6 h-12 line-clamp-2 italic text-white/95 px-2">{item.name}</h5>
@@ -296,7 +296,7 @@ export default function CustomerDashboard({ user, lang, setActiveTab }) {
         </motion.div>
       )}
 
-      {/* FLOAT: CART PREVIEW Hub */}
+      {/* FLOAT ACTION: CART PREVIEW */}
       <AnimatePresence>
         {cart.length > 0 && (
           <motion.div initial={{ y: 140, scale: 0.8 }} animate={{ y: 0, scale: 1 }} exit={{ y: 140, scale: 0.8 }} className="fixed bottom-32 left-0 right-0 px-10 z-50">
@@ -305,7 +305,7 @@ export default function CustomerDashboard({ user, lang, setActiveTab }) {
                 <ShoppingCart size={32} />
                 <span className="font-black italic uppercase text-sm tracking-[3px]">{t.view_tab} ({cart.length})</span>
               </div>
-              <span className="bg-black/50 px-8 py-3 rounded-full text-lg font-black border border-white/20 tracking-tighter italic text-teal-400">
+              <span className="bg-black/50 px-6 py-2.5 rounded-full text-base font-black border border-white/20 tracking-tighter italic text-teal-400">
                 AED {cart.reduce((s,i) => s + (i.price * i.qty), 0).toFixed(2)}
               </span>
             </button>
@@ -313,13 +313,13 @@ export default function CustomerDashboard({ user, lang, setActiveTab }) {
         )}
       </AnimatePresence>
 
-      {/* MODAL: Hub CHECKOUT COMMIT */}
+      {/* MODAL: Hub CHECKOUT Hub */}
       <AnimatePresence>
         {showCart && (
           <div className="fixed inset-0 z-[101] flex items-end justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowCart(false)} className="absolute inset-0 bg-black/95 backdrop-blur-2xl" />
             <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: 'spring', damping: 30, stiffness: 200 }} className="relative w-full max-w-[500px] bg-[#0a0a0f] rounded-t-[70px] p-12 pb-16 border-t border-white/10 flex flex-col shadow-[0_-40px_120px_rgba(0,0,0,0.9)]">
-              <div className="w-20 h-1.5 bg-white/20 rounded-full mx-auto mb-12" />
+              <div className="w-20 h-1.5 bg-white/10 rounded-full mx-auto mb-12" />
               <div className="flex justify-between items-center mb-16">
                 <h2 className="text-4xl font-black italic uppercase tracking-tighter text-white">Grid Order</h2>
                 <button onClick={() => setCart([])} className="p-5 bg-red-500/10 text-red-500 rounded-full border border-red-500/10 active:scale-90 transition-all"><Trash2 size={32}/></button>
@@ -344,7 +344,7 @@ export default function CustomerDashboard({ user, lang, setActiveTab }) {
                         <p className="text-base font-black uppercase tracking-[5px]">{t.checkout_locked}</p>
                     </div>
                     <p className="text-[12px] font-bold text-white/50 uppercase tracking-widest leading-loose px-4">
-                       Commitment to the digital neighborhood ledger requires manual store owner verification.
+                       Direct commitment to the neighborhood ledger requires verified store owner approval.
                     </p>
                 </div>
               ) : (

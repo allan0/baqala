@@ -1,6 +1,6 @@
 // ================================================
 // frontend/src/components/HisaabTab.jsx
-// VERSION 20 (FULL LEDGER & SETTLEMENT RESTORATION)
+// VERSION 21 (FULL LEDGER & IDENTITY RESTORATION)
 // ================================================
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -21,7 +21,7 @@ const loc = {
     total_owed: "Outstanding Debt",
     settle_ton: "Settle via TON",
     savings_alert: "TON Crypto Discount",
-    empty_ledger: "Your tabs are clear! Shukran.",
+    empty_ledger: "All tabs are clear! Shukran.",
     tab_active: "Neighborhood Tabs",
     merchant_label: "Baqala Hub",
     fazaa_hub: "Fazaa Benefit Hub",
@@ -29,7 +29,7 @@ const loc = {
     fazaa_link: "Link Fazaa ID",
     fazaa_active: "Fazaa Verified",
     identity_locked: "Identity Required",
-    identity_msg: "Please link your Gmail or Telegram in the 'Me' tab to access your digital neighborhood ledger.",
+    identity_msg: "Please link your Gmail or Telegram in the 'Me' tab to access your digital hisaab.",
     link_now: "Link My Identity",
     rate_info: "1 TON ≈ 20.50 AED",
     protocol_sync: "Ledger Encrypted & Synchronized"
@@ -63,11 +63,11 @@ export default function HisaabTab({ user, lang, setActiveTab }) {
   const t = useMemo(() => loc[lang], [lang]);
   const isRTL = lang === 'ar';
   
-  // Identity Check: Guest vs Linked User
+  // Identity Status: Guests (unlinked) vs Registered Users
   const isGuest = !user?.telegram_id && !user?.email;
   const TON_EXCHANGE_RATE = 20.50; 
 
-  // 1. Ledger Sync: Fetch real debt rows from DB
+  // 1. Fetch real ledger data via Identity Bridge
   const fetchLedger = async () => {
     if (isGuest) {
       setIsLoading(false);
@@ -91,7 +91,7 @@ export default function HisaabTab({ user, lang, setActiveTab }) {
 
   useEffect(() => { fetchLedger(); }, [user?.id]);
 
-  // 2. Persistent Identity Linking (Fazaa)
+  // 2. Fazaa Card Sync (Hits persistent Database Profile)
   const handleLinkFazaa = async () => {
     if (!fazaaInput.trim() || !user?.id) return;
     setIsLinking(true);
@@ -102,7 +102,7 @@ export default function HisaabTab({ user, lang, setActiveTab }) {
       });
       if (res.data.success) {
         if (WebApp?.HapticFeedback) WebApp.HapticFeedback.notificationOccurred('success');
-        // Force reload to pick up updated profile state in App.jsx
+        // Force refresh to reload App component with new profile data
         window.location.reload(); 
       }
     } catch (e) {
@@ -112,9 +112,9 @@ export default function HisaabTab({ user, lang, setActiveTab }) {
     }
   };
 
-  // 3. Web3 Payment Engine
+  // 3. Web3 Payment Engine (TON Bridge)
   const handleSettle = (debt) => {
-    // Logic: Base Store Reward + Fazaa Bonus
+    // Dynamic Discount Math
     const baseDiscount = debt.baqala?.crypto_discount || 10;
     const bonusDiscount = user?.fazaa_card ? 5 : 0;
     const totalDiscount = baseDiscount + bonusDiscount;
@@ -122,11 +122,11 @@ export default function HisaabTab({ user, lang, setActiveTab }) {
     const finalAed = debt.total_aed * (1 - totalDiscount / 100);
     const tonAmount = (finalAed / TON_EXCHANGE_RATE).toFixed(4);
     
-    // Use merchant's real address or protocol fallback
+    // Pick up real store wallet address from DB
     const merchantWallet = debt.baqala?.wallet_address || "EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c";
     const memo = `Baqala_Settle_${debt.id.slice(0,8)}`;
     
-    // Telegram Wallet Transfer deep link
+    // Telegram Wallet Deep Link
     const tonUrl = `https://t.me/wallet/transfer?address=${merchantWallet}&amount=${tonAmount}&text=${encodeURIComponent(memo)}`;
 
     if (WebApp?.openTelegramLink) {
@@ -147,10 +147,10 @@ export default function HisaabTab({ user, lang, setActiveTab }) {
     </div>
   );
 
-  // --- Hub LOCK SCREEN (Guest Mode) ---
+  // --- Hub LOCK SCREEN (For Guest browsing) ---
   if (isGuest) return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="px-12 pt-24 text-center">
-       <div className="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-white/5">
+       <div className="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-10 shadow-[0_20px_50px_rgba(0,245,212,0.5)] border border-white/5">
          <Lock size={48} className="text-orange-500 opacity-40" />
        </div>
        <h2 className="text-3xl font-black italic uppercase mb-4 tracking-tighter text-white">{t.identity_locked}</h2>
@@ -161,11 +161,11 @@ export default function HisaabTab({ user, lang, setActiveTab }) {
     </motion.div>
   );
 
-  // --- ACTIVE Hub LEDGER ---
+  // --- FULL LEDGER VIEW ---
   return (
     <div className={`px-5 pt-4 pb-32 ${isRTL ? 'text-right' : 'text-left'}`}>
       
-      {/* SUMMARY: SHIMMERING Hub CARD */}
+      {/* SHIMMERING Hub CARD: Balance Summary */}
       <div className="glass-card !bg-gradient-to-br from-teal-500/10 to-transparent border-teal-500/20 mb-12 overflow-hidden relative shadow-[0_40px_80px_rgba(0,0,0,0.6)] rounded-[50px]">
         <Sparkles className="absolute -right-10 -top-10 text-teal-400/10" size={200} />
         <p className="text-[10px] font-black uppercase text-teal-400 mb-3 tracking-[5px] ml-1">{t.total_owed}</p>
@@ -182,7 +182,7 @@ export default function HisaabTab({ user, lang, setActiveTab }) {
         </div>
       </div>
 
-      {/* REWARDS: FAZAA Hub */}
+      {/* REWARDS: FAZAA Benefit Center */}
       <div className="glass-card mb-12 border-blue-500/10 relative overflow-hidden rounded-[40px] bg-gradient-to-tr from-blue-500/[0.02] to-transparent">
          <div className="absolute top-0 right-0 p-8 opacity-[0.02] text-blue-400 rotate-12"><WalletCards size={150}/></div>
          <div className="flex items-center gap-6 mb-10 relative z-10 px-1">
@@ -191,7 +191,7 @@ export default function HisaabTab({ user, lang, setActiveTab }) {
             </div>
             <div>
                <h3 className="font-black italic uppercase text-xl tracking-tighter leading-tight text-white">{t.fazaa_hub}</h3>
-               <p className="text-[10px] text-white/30 font-bold uppercase mt-1.5 tracking-[3px] leading-none">Trust Level Protocol</p>
+               <p className="text-[10px] text-white/30 font-bold uppercase mt-1.5 tracking-[3px] leading-none">Trust Level Benefits</p>
             </div>
          </div>
 
@@ -221,7 +221,7 @@ export default function HisaabTab({ user, lang, setActiveTab }) {
          )}
       </div>
 
-      {/* LEDGER Hub: Hub TABS */}
+      {/* Hub TABS LISTING */}
       <div className="flex items-center justify-between mb-10 px-4">
         <h3 className="text-[14px] font-black text-white/40 uppercase tracking-[6px] italic">{t.tab_active}</h3>
         <span className="text-[10px] font-black text-teal-400/60 uppercase bg-teal-400/5 px-4 py-2 rounded-full border border-teal-400/10 font-mono tracking-tighter">{t.rate_info}</span>
@@ -239,11 +239,12 @@ export default function HisaabTab({ user, lang, setActiveTab }) {
                <div className="p-10 border-b border-white/5 flex justify-between items-start bg-gradient-to-tr from-white/[0.02] to-transparent">
                   <div>
                      <p className="text-[11px] font-black text-teal-400 uppercase mb-3 tracking-[5px]">{t.merchant_label}</p>
-                     <h4 className="text-3xl font-black italic tracking-tighter text-white leading-none group-hover:text-teal-400 transition-colors">{debt.baqala?.name}</h4>
+                     {/* FIX: Dynamically pulled store name instead of "ali al baqala" */}
+                     <h4 className="text-3xl font-black italic tracking-tighter text-white leading-none group-hover:text-teal-400 transition-colors uppercase">{debt.baqala?.name || 'Local Store'}</h4>
                      <p className="text-[10px] text-white/30 mt-6 font-bold uppercase tracking-[4px]">{new Date(debt.created_at).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                   </div>
                   <div className="text-right">
-                     <p className="text-5xl font-black tracking-tighter italic text-white leading-none">AED {parseFloat(debt.total_aed).toFixed(2)}</p>
+                     <p className="text-5xl font-black tracking-tighter italic text-white leading-none uppercase">AED {parseFloat(debt.total_aed).toFixed(2)}</p>
                      <div className="flex items-center gap-3 justify-end text-white/40 mt-4">
                         <Wallet2 size={18} />
                         <span className="text-[14px] font-black uppercase tracking-tighter font-mono italic">~{ (debt.total_aed / TON_EXCHANGE_RATE).toFixed(3) } TON</span>
@@ -264,7 +265,7 @@ export default function HisaabTab({ user, lang, setActiveTab }) {
         )}
       </div>
       
-      <p className="text-center text-[10px] text-white/10 font-bold uppercase tracking-[10px] pt-24 italic opacity-30 pb-10">
+      <p className="text-center text-[10px] text-white/10 font-black uppercase tracking-[10px] pt-24 italic opacity-30 pb-10">
          {t.protocol_sync}
       </p>
     </div>
