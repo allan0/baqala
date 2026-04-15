@@ -1,324 +1,201 @@
-import React, { useEffect, useState, useMemo } from 'react';
+// ================================================
+// frontend/src/App.jsx - VERSION 15 (PROD AUTH)
+// ================================================
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Bell, Wallet as WalletIcon, Users, User, 
-  ShoppingCart as CartIcon, Store as StoreIcon,
-  X, Smartphone, Globe, ShieldCheck, LogOut,
-  ChevronRight, ChevronLeft, Languages, Home, Settings,
-  Edit3, Check, UserCircle, CreditCard, RefreshCw
+  RefreshCw, LogOut, Mail, Chrome, User, Shield, 
+  ChevronRight, Bell, Wallet, Home, Store
 } from 'lucide-react';
+import { createClient } from '@supabase/supabase-js';
+import axios from 'axios';
 
 // Components
 import CustomerDashboard from './components/CustomerDashboard';
 import VendorDashboard from './components/VendorDashboard';
 import HisaabTab from './components/HisaabTab';
 import WelcomeTour from './components/WelcomeTour';
-import NotificationsPanel from './components/NotificationsPanel';
 
+// Configuration
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
+const API_URL = import.meta.env.VITE_API_URL || "https://baqala-i2oi.onrender.com";
 const WebApp = window.Telegram?.WebApp;
-const API_URL = "https://baqala-i2oi.onrender.com";
-
-const translations = {
-  en: {
-    app_name: "Baqalas",
-    role_customer: "Resident",
-    role_merchant: "Baqala Owner",
-    nav_home: "Neighborhood",
-    nav_hisaab: "My Ledger",
-    nav_profile: "Me",
-    connect_wallet: "Link Wallet",
-    switch_merchant: "Merchant Portal",
-    switch_customer: "Resident View",
-    disconnect: "Unlink",
-    security: "Identity & Security",
-    intro_sub: "THE DIGITAL HISAB NETWORK",
-    wallet_ton: "TON (Tonkeeper/Wallet)",
-    edit_profile: "Edit Profile",
-    save: "Save",
-    name_label: "Display Name",
-    wallet_connected: "Connected",
-    no_wallet: "Wallet not found. Please install Tonkeeper or use from Telegram.",
-    notifications: "Notifications",
-    syncing_telegram: "Syncing with Telegram..." // New loading text
-  },
-  ar: {
-    app_name: "بقالات",
-    role_customer: "ساكن",
-    role_merchant: "راعي الدكان",
-    nav_home: "الفريج",
-    nav_hisaab: "دفتر الحساب",
-    nav_profile: "ملفي",
-    connect_wallet: "ربط المحفظة",
-    switch_merchant: "بوابة التاجر",
-    switch_customer: "واجهة السكان",
-    disconnect: "قطع الاتصال",
-    security: "الهوية والأمان",
-    intro_sub: "شبكة الحساب الرقمي",
-    wallet_ton: "محفظة TON",
-    edit_profile: "تعديل الملف",
-    save: "حفظ",
-    name_label: "الاسم المستعار",
-    wallet_connected: "متصل",
-    no_wallet: "المحفظة غير متوفرة. يرجى تثبيت Tonkeeper أو استخدامها من داخل تيليجرام.",
-    notifications: "الإشعارات",
-    syncing_telegram: "جاري المزامنة مع تيليجرام..." // New loading text
-  }
-};
 
 export default function App() {
-  const [user, setUser] = useState(null);
-  const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [displayName, setDisplayName] = useState('');
-  const [lang, setLang] = useState(localStorage.getItem('baqala_lang') || 'en');
-  const [role, setRole] = useState(localStorage.getItem('baqala_role') || 'customer');
+  const [session, setSession] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('home');
-  const [showIntro, setShowIntro] = useState(true);
-  const [showTour, setShowTour] = useState(false);
-  const [walletAddress, setWalletAddress] = useState(localStorage.getItem('baqala_wallet') || null);
-  const [walletType, setWalletType] = useState(localStorage.getItem('baqala_wallet_type') || null);
-  const [showWalletModal, setShowWalletModal] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
+  const [lang, setLang] = useState(localStorage.getItem('baqala_lang') || 'en');
 
-  // FIX: Add a dedicated loading state for user initialization
-  const [isInitializing, setIsInitializing] = useState(true);
-
-  const t = useMemo(() => translations[lang], [lang]);
-  const isRTL = lang === 'ar';
-
+  // 1. Unified Auth Handler
   useEffect(() => {
-    const initializeApp = () => {
-      if (WebApp) {
-        WebApp.ready();
+    const initAuth = async () => {
+      // A. Check if inside Telegram
+      if (WebApp?.initDataUnsafe?.user) {
+        const tgUser = WebApp.initDataUnsafe.user;
         WebApp.expand();
         WebApp.setHeaderColor('#0a0a0f');
-        if (WebApp.initDataUnsafe?.user) {
-          const tgUser = WebApp.initDataUnsafe.user;
-          setUser(tgUser);
-          setDisplayName(tgUser.username || `${tgUser.first_name} ${tgUser.last_name || ''}`);
-        } else {
-            // Fallback for testing in a browser
-            console.warn("Telegram user data not found. Using mock user.");
-            const mockUser = { id: 12345, first_name: "Test", last_name: "User", username: "testuser" };
-            setUser(mockUser);
-            setDisplayName(mockUser.username);
+        
+        // Sync Telegram user with Backend Profiles
+        try {
+          const res = await axios.post(`${API_URL}/api/user/sync`, {}, {
+            headers: { 
+                telegram_id: tgUser.id,
+                display_name: tgUser.username || tgUser.first_name 
+            }
+          });
+          setProfile(res.data.user);
+          setLoading(false);
+        } catch (e) {
+          console.error("TG Sync Failed", e);
         }
       } else {
-        console.warn("Telegram WebApp SDK not found. Using mock user.");
-        const mockUser = { id: 12345, first_name: "Test", last_name: "User", username: "testuser" };
-        setUser(mockUser);
-        setDisplayName(mockUser.username);
-      }
-
-      document.documentElement.dir = isRTL ? 'rtl' : 'ltr';
-      
-      const tourCompleted = localStorage.getItem('baqala_tour_completed');
-      if (!tourCompleted) {
-        setShowTour(true);
-      }
-      
-      const introTimer = setTimeout(() => setShowIntro(false), 2000);
-      
-      // Mark initialization as complete
-      const initTimer = setTimeout(() => setIsInitializing(false), 500); // Give it a moment to ensure user is set
-
-      return () => {
-        clearTimeout(introTimer);
-        clearTimeout(initTimer);
-      };
-    };
-
-    initializeApp();
-  }, [isRTL]);
-
-  useEffect(() => {
-    if (WebApp?.isVersionAtLeast('6.1')) {
-      if (activeTab !== 'home' || role === 'vendor') {
-        WebApp.BackButton.show();
-        WebApp.BackButton.onClick(() => {
-          if (role === 'vendor') setRole('customer');
-          else setActiveTab('home');
+        // B. Standard Web Environment
+        const { data: { session } } = await supabase.auth.getSession();
+        setSession(session);
+        if (session) await fetchProfile(session.user.id);
+        
+        supabase.auth.onAuthStateChange((_event, session) => {
+          setSession(session);
+          if (session) fetchProfile(session.user.id);
+          else setProfile(null);
+          setLoading(false);
         });
-      } else {
-        WebApp.BackButton.hide();
+        
+        setLoading(false);
       }
-    }
-  }, [activeTab, role]);
+    };
+    initAuth();
+  }, []);
 
-  const connectTON = async () => { /* ... (no changes) ... */ };
-  const toggleRole = () => { /* ... (no changes) ... */ };
-  const saveProfile = async () => { /* ... (no changes) ... */ };
+  const fetchProfile = async (uid) => {
+    const { data } = await supabase.from('profiles').select('*').eq('id', uid).single();
+    setProfile(data);
+  };
 
-  if (showIntro && !showTour) {
+  const handleGmailLogin = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin }
+    });
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    window.location.reload();
+  };
+
+  // UI state for unauthenticated web users
+  if (!profile && !WebApp?.initDataUnsafe?.user && !loading) {
     return (
-      <div className="fixed inset-0 bg-[#0a0a0f] flex items-center justify-center z-[9999]">
-        <div className="text-center">
-          <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2 }} className="text-7xl mb-4">🏪</motion.div>
-          <h1 className="text-4xl font-black bg-gradient-to-r from-[#00f5d4] to-[#ff5e00] bg-clip-text text-transparent italic animate-gradient">
-            {isRTL ? "بقالات" : "Baqalas"}
-          </h1>
-          <p className="text-[#94a3b8] tracking-[5px] text-[9px] mt-2 font-bold uppercase">{t.intro_sub}</p>
+      <div className="min-h-screen bg-[#0a0a0f] flex flex-col items-center justify-center p-6 text-center">
+        <img src="/baqalaslogo.png" className="w-24 mb-8" alt="Logo" />
+        <h1 className="text-3xl font-black italic mb-2 tracking-tighter">BAQALA NETWORK</h1>
+        <p className="text-white/40 text-sm mb-10">Join the neighborhood digital hisaab.</p>
+        
+        <div className="w-full max-w-sm space-y-4">
+          <button onClick={handleGmailLogin} className="w-full flex items-center justify-center gap-3 bg-white text-black py-4 rounded-2xl font-bold">
+            <Chrome size={20} /> Continue with Google
+          </button>
+          <div className="flex items-center gap-4 py-2">
+            <div className="h-px bg-white/10 flex-1" />
+            <span className="text-[10px] font-bold text-white/20 uppercase tracking-widest">or</span>
+            <div className="h-px bg-white/10 flex-1" />
+          </div>
+          <button onClick={() => {/* Email Modal */}} className="w-full flex items-center justify-center gap-3 bg-white/5 border border-white/10 py-4 rounded-2xl font-bold">
+            <Mail size={20} /> Sign in with Email
+          </button>
         </div>
       </div>
     );
   }
-  
-  // FIX: Full screen loader to ensure user data is ready before rendering anything else
-  if (isInitializing) {
-    return (
-        <div className="fixed inset-0 bg-[#0a0a0f] flex flex-col items-center justify-center z-[9998]">
-            <RefreshCw className="animate-spin text-teal-400 mb-4" />
-            <p className="text-[10px] font-black uppercase tracking-[3px] text-white/50">{t.syncing_telegram}</p>
-        </div>
-    );
-  }
+
+  if (loading) return (
+    <div className="min-h-screen bg-[#0a0a0f] flex flex-col items-center justify-center">
+      <RefreshCw className="animate-spin text-teal-400 mb-4" />
+      <p className="text-[10px] font-black uppercase tracking-[4px] text-white/30">Connecting to Grid</p>
+    </div>
+  );
 
   return (
-    <div className={`min-h-screen bg-[#0a0a0f] text-white flex flex-col font-sans select-none overflow-hidden ${isRTL ? 'font-arabic' : ''}`}>
-      
-      {showTour && <WelcomeTour onComplete={(chosenLang) => { setShowTour(false); setLang(chosenLang); }} />}
-      
-      <NotificationsPanel show={showNotifications} onClose={() => setShowNotifications(false)} lang={lang} user={user} />
-
-      {/* HEADER */}
-      <header className="sticky top-0 z-40 bg-[#0a0a0f]/80 backdrop-blur-xl border-b border-white/5">
-        <div className="max-w-[500px] mx-auto flex items-center justify-between px-5 py-4">
-          <div className="flex items-center gap-3">
-             <div className="flex items-center gap-2" onClick={toggleRole}>
-                <motion.div whileTap={{ scale: 0.8, rotate: -15 }}>
-                   <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center border border-white/10 text-xl">🏪</div>
-                </motion.div>
-                <h2 className="text-xl font-black bg-gradient-to-r from-[#00f5d4] to-[#ff5e00] bg-clip-text text-transparent italic">{t.app_name}</h2>
-             </div>
+    <div className="min-h-screen bg-[#0a0a0f] text-white flex flex-col overflow-hidden font-sans">
+      {/* Top Navigation */}
+      <header className="px-6 py-4 flex justify-between items-center bg-[#0a0a0f]/80 backdrop-blur-xl sticky top-0 z-50 border-b border-white/5">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gradient-to-br from-teal-400 to-orange-500 rounded-xl flex items-center justify-center font-black italic text-black">
+            B
           </div>
-
-          <div className="flex items-center gap-2">
-             <button onClick={() => setLang(lang === 'en' ? 'ar' : 'en')} className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center border border-white/10 active:scale-90 transition-all">
-               <Languages size={18} className="text-white/40" />
-             </button>
-             <button onClick={() => setShowNotifications(true)} className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center border border-white/10 active:scale-90 transition-all">
-               <Bell size={18} className="text-white/40" />
-             </button>
+          <div>
+            <h2 className="text-sm font-black italic leading-tight uppercase">{profile?.display_name || 'Guest'}</h2>
+            <p className="text-[9px] font-bold text-teal-400 uppercase tracking-tighter">
+                {profile?.role === 'merchant' ? 'Baqala Manager' : 'Verified Resident'}
+            </p>
           </div>
+        </div>
+        <div className="flex items-center gap-4">
+          <Bell size={20} className="text-white/20" />
+          <button onClick={handleLogout} className="p-2 bg-white/5 rounded-lg text-white/40"><LogOut size={18}/></button>
         </div>
       </header>
 
-      {/* CONTENT */}
-      <main className="flex-1 w-full max-w-[500px] mx-auto overflow-y-auto pb-32 pt-2 scrollbar-hide">
+      {/* Dynamic Content */}
+      <main className="flex-1 overflow-y-auto pb-32">
         <AnimatePresence mode="wait">
-          {role === 'vendor' ? (
-            <VendorDashboard key="vendor" user={user} lang={lang} />
+          {profile?.role === 'merchant' ? (
+             <VendorDashboard key="vendor" user={profile} lang={lang} />
           ) : (
             <>
-              {activeTab === 'home' && <CustomerDashboard user={user} lang={lang} setActiveTab={setActiveTab} />}
-              {activeTab === 'hisaab' && <HisaabTab user={user} wallet={walletAddress} lang={lang} />}
+              {activeTab === 'home' && <CustomerDashboard user={profile} lang={lang} setActiveTab={setActiveTab} />}
+              {activeTab === 'hisaab' && <HisaabTab user={profile} lang={lang} />}
               {activeTab === 'profile' && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-6 space-y-6">
+                <div className="p-6 space-y-6">
+                  <div className="glass-card flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center"><User size={32}/></div>
+                        <div>
+                            <h3 className="font-black italic text-xl">{profile?.display_name}</h3>
+                            <p className="text-xs text-white/30">{profile?.email || 'Telegram Linked'}</p>
+                        </div>
+                    </div>
+                  </div>
+                  
                   <div className="glass-card">
-                    <div className="flex items-center gap-5 mb-8">
-                       {user?.photo_url ? (
-                         <img src={user.photo_url} className="w-20 h-20 rounded-[24px] border-2 border-teal-400/30" alt="Profile" />
-                       ) : (
-                         <div className="w-20 h-20 bg-white/5 rounded-[24px] flex items-center justify-center text-3xl font-black italic shadow-inner">{displayName?.[0] || 'B'}</div>
-                       )}
-                       <div>
-                          {isEditingProfile ? (
-                            <div className="flex gap-2 items-center">
-                              <input 
-                                className="input-modern !py-1 !px-2 !text-base !rounded-lg w-full"
-                                value={displayName}
-                                onChange={e => setDisplayName(e.target.value)}
-                              />
-                              <button onClick={saveProfile} className="p-2 bg-teal-400 text-black rounded-lg"><Check size={16}/></button>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-3">
-                              <h2 className="text-2xl font-black italic">{displayName}</h2>
-                              <Edit3 onClick={() => setIsEditingProfile(true)} size={16} className="text-teal-400 opacity-50 cursor-pointer" />
-                            </div>
-                          )}
-                          <p className="text-[10px] text-white/30 font-bold uppercase tracking-[2px] mt-1">ID: {user?.id || 'LOCAL_GUEST'}</p>
-                       </div>
-                    </div>
-
-                    <div className="space-y-3 pt-4 border-t border-white/5">
-                      <button onClick={toggleRole} className="w-full flex items-center justify-between p-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-all group">
-                         <div className="flex items-center gap-4">
-                           <ShieldCheck size={22} className="text-teal-400" />
-                           <span className="font-bold text-sm uppercase">{t.switch_merchant}</span>
-                         </div>
-                         <ChevronRight size={18} className="opacity-20 group-hover:translate-x-1 transition-transform" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="glass-card !p-0 overflow-hidden">
-                    <div className="p-6">
-                       <h3 className="text-xs font-black uppercase tracking-[3px] text-[#94a3b8] mb-1">Financial</h3>
-                       <p className="text-[10px] opacity-40 uppercase">Your Digital Wallet & Benefits</p>
-                    </div>
-                    <div className="p-6 space-y-4 border-t border-white/5">
-                       <button onClick={() => setShowWalletModal(true)} className={`w-full flex justify-between items-center text-left p-4 rounded-2xl border transition-all ${walletAddress ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-white/5 border-white/10'}`}>
-                          <div className="flex items-center gap-3">
-                            <WalletIcon size={18} className={walletAddress ? 'text-emerald-400' : 'text-white/30'} />
-                            <span className="text-sm font-bold uppercase">{walletAddress ? t.wallet_connected : t.connect_wallet}</span>
-                          </div>
-                          <span className="font-mono text-[9px] text-white/30">{walletAddress ? `${walletAddress.slice(0, 4)}..${walletAddress.slice(-4)}` : t.wallet_ton}</span>
-                       </button>
-                    </div>
-                  </div>
-
-                  {walletAddress && (
-                    <button onClick={() => { setWalletAddress(null); setWalletType(null); localStorage.removeItem('baqala_wallet'); localStorage.removeItem('baqala_wallet_type'); }} className="w-full p-5 rounded-[24px] bg-red-500/5 text-red-500 font-black uppercase text-[10px] border border-red-500/10 active:scale-95 transition-all flex items-center justify-center gap-3">
-                      <LogOut size={16}/> {t.disconnect} {walletType}
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-teal-400 mb-6">Linked Benefits</h4>
+                    <button className="w-full flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
+                        <span className="text-sm font-bold">Fazaa Member ID</span>
+                        <ChevronRight size={18} className="text-white/20" />
                     </button>
-                  )}
-                </motion.div>
+                  </div>
+                </div>
               )}
             </>
           )}
         </AnimatePresence>
       </main>
 
-      {/* FOOTER NAV (Customer Only) */}
-      {role === 'customer' && (
-        <nav className="fixed bottom-0 left-0 right-0 bg-[#0a0a0f]/90 backdrop-blur-3xl border-t border-white/5 z-50">
-          <div className="max-w-[500px] mx-auto flex justify-around items-center py-5 px-4">
-            <button onClick={() => setActiveTab('home')} className={`flex flex-col items-center gap-1.5 transition-all ${activeTab === 'home' ? 'text-teal-400 scale-110' : 'text-white/20'}`}>
-              <Home size={22} /><span className="text-[8px] font-black uppercase tracking-widest">{t.nav_home}</span>
+      {/* Bottom Nav (Residents Only) */}
+      {profile?.role !== 'merchant' && (
+        <nav className="fixed bottom-0 left-0 right-0 h-24 bg-[#0a0a0f]/90 backdrop-blur-3xl border-t border-white/5 px-8 flex justify-between items-center z-50">
+          {[
+            { id: 'home', icon: Home, label: 'Farij' },
+            { id: 'hisaab', icon: Wallet, label: 'Ledger' },
+            { id: 'profile', icon: User, label: 'Me' }
+          ].map(btn => (
+            <button 
+              key={btn.id}
+              onClick={() => setActiveTab(btn.id)}
+              className={`flex flex-col items-center gap-1 transition-all ${activeTab === btn.id ? 'text-teal-400 scale-110' : 'text-white/20'}`}
+            >
+              <btn.icon size={24} />
+              <span className="text-[8px] font-black uppercase tracking-widest">{btn.label}</span>
             </button>
-            <button onClick={() => setActiveTab('hisaab')} className={`flex flex-col items-center gap-1.5 transition-all ${activeTab === 'hisaab' ? 'text-teal-400 scale-110' : 'text-white/20'}`}>
-              <CartIcon size={22} /><span className="text-[8px] font-black uppercase tracking-widest">{t.nav_hisaab}</span>
-            </button>
-            <button onClick={() => setActiveTab('profile')} className={`flex flex-col items-center gap-1.5 transition-all ${activeTab === 'profile' ? 'text-teal-400 scale-110' : 'text-white/20'}`}>
-              <UserCircle size={22} /><span className="text-[8px] font-black uppercase tracking-widest">{t.nav_profile}</span>
-            </button>
-          </div>
+          ))}
         </nav>
       )}
-
-      {/* WALLET MODAL (omitted for brevity, no changes) */}
-       <AnimatePresence>
-        {showWalletModal && (
-          <div className="fixed inset-0 z-[100] flex items-end justify-center p-4">
-            <div onClick={() => setShowWalletModal(false)} className="absolute inset-0 bg-black/90 backdrop-blur-md" />
-            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="relative w-full max-w-[500px] bg-[#161b22] rounded-t-[40px] p-10 border-t border-white/10 shadow-2xl">
-              <div className="flex justify-between items-center mb-10">
-                <h2 className="text-3xl font-black italic uppercase italic tracking-tighter">{t.connect_wallet}</h2>
-                <X onClick={() => setShowWalletModal(false)} className="opacity-30 hover:opacity-100" />
-              </div>
-              <div className="space-y-4">
-                <button onClick={connectTON} className="w-full flex items-center justify-between p-6 bg-white/5 border border-white/10 rounded-[28px] hover:bg-white/10 active:scale-95 transition-all">
-                  <div className="flex items-center gap-5">
-                    <Smartphone size={32} className="text-blue-400"/>
-                    <div className="text-left"><div className="font-black text-xl italic uppercase leading-none">TON Hub</div><div className="text-[9px] opacity-40 uppercase font-black tracking-widest mt-2">{t.wallet_ton}</div></div>
-                  </div>
-                  <Globe size={20} className="opacity-10" />
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
