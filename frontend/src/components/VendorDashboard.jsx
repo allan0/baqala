@@ -12,7 +12,7 @@ import axios from 'axios';
 const WebApp = window.Telegram?.WebApp;
 const API_URL = "https://baqala-i2oi.onrender.com";
 
-// --- KHALEEJI ARABIC LOCALIZATION ---
+// --- KHALEEJI ARABIC LOCALIZATION (omitted for brevity, no changes) ---
 const loc = {
   en: {
     tab_stats: "Stats",
@@ -82,6 +82,7 @@ const loc = {
   }
 };
 
+
 const hoursPresets = ["Open 24/7", "9am - 11pm", "Closed for Prayer"];
 const statusPresets = ["Open", "Closed", "Will be back shortly"];
 
@@ -105,8 +106,34 @@ export default function VendorDashboard({ user, lang }) {
 
   const t = useMemo(() => loc[lang], [lang]);
   const isRTL = lang === 'ar';
-  const merchantId = user?.id?.toString() || 'merchant_live';
+  
+  // FIX: Use the user prop directly and handle null state
+  const merchantId = user?.id?.toString();
 
+  const fetchMerchantHub = async () => {
+      // FIX: Ensure we have a valid merchantId before fetching
+      if (!merchantId) {
+          setIsLoading(false);
+          return;
+      }
+      setIsLoading(true);
+      try {
+        const res = await axios.get(`${API_URL}/api/baqala/owner/${merchantId}`);
+        if (res.data?.baqala) {
+          const b = res.data.baqala;
+          setMyBaqala(b);
+          setInventory(b.inventory || []);
+          setResidents(res.data.clients || []);
+        }
+      } catch (e) {
+        console.error("Merchant Hub Error", e);
+        setMyBaqala(null); // Explicitly set to null on error (like 404)
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+  // FIX: Rerun fetchMerchantHub ONLY when the merchantId is available
   useEffect(() => {
     fetchMerchantHub();
   }, [merchantId]);
@@ -130,22 +157,6 @@ export default function VendorDashboard({ user, lang }) {
     }
   }, [myBaqala]);
 
-
-  const fetchMerchantHub = async () => {
-    try {
-      const res = await axios.get(`${API_URL}/api/baqala/owner/${merchantId}`);
-      if (res.data?.baqala) {
-        const b = res.data.baqala;
-        setMyBaqala(b);
-        setInventory(b.inventory || []);
-        setResidents(res.data.clients || []);
-      }
-    } catch (e) {
-      console.error("Merchant Hub Error", e);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleSyncIdentity = async () => {
     setIsSyncing(true);
@@ -234,15 +245,60 @@ export default function VendorDashboard({ user, lang }) {
 
       <AnimatePresence mode="wait">
         
+        {/* VIEW: STATS */}
         {activeTab === 'stats' && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} key="stats" className="space-y-5">
-            {/* Stats content remains the same */}
+            <div className="grid grid-cols-2 gap-4">
+               <div className="glass-card !p-6">
+                  <TrendingUp size={16} className="text-teal-400 mb-3" />
+                  <p className="text-[10px] font-black opacity-30 uppercase">{t.daily_sales}</p>
+                  <p className="text-2xl font-black tracking-tighter italic">AED 0.00</p>
+               </div>
+               <div className="glass-card !p-6 border-orange-500/20">
+                  <CreditCard size={16} className="text-orange-500 mb-3" />
+                  <p className="text-[10px] font-black opacity-30 uppercase">{t.neighborhood_debt}</p>
+                  <p className="text-2xl font-black tracking-tighter text-orange-500">
+                    AED {residents.filter(r=>r.status==='approved').reduce((s,r)=>s+45.50, 0).toFixed(2)}
+                  </p>
+               </div>
+            </div>
+
+            <div className="glass-card !p-6">
+               <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-[10px] font-black uppercase tracking-[3px]">{t.trusted_neighbors}</h3>
+                  <Users size={16} className="opacity-20" />
+               </div>
+               <div className="flex -space-x-3 overflow-hidden">
+                  {residents.length === 0 ? (
+                    <p className="text-[10px] opacity-20 italic">No trusted neighbors found.</p>
+                  ) : (
+                    residents.filter(r=>r.status==='approved').map((r, i) => (
+                      <div key={i} className="w-12 h-12 rounded-full border-4 border-[#0a0a0f] bg-gradient-to-tr from-white/10 to-white/20 flex items-center justify-center font-black text-xs shadow-xl">
+                         {r.users?.name?.[0] || 'U'}
+                      </div>
+                    ))
+                  )}
+               </div>
+            </div>
           </motion.div>
         )}
 
+        {/* VIEW: CATALOG */}
         {activeTab === 'catalog' && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} key="catalog" className="space-y-6">
-             {/* Catalog content with delete button */}
+             <div className="glass-card">
+                <h3 className="text-[10px] font-black uppercase tracking-[3px] mb-6 flex items-center gap-2">
+                   <Plus size={14} className="text-teal-400" /> {t.add_product}
+                </h3>
+                <form onSubmit={addItem} className="space-y-4">
+                   <input className="input-modern" placeholder={t.item_placeholder} value={itemForm.name} onChange={e=>setItemForm({...itemForm, name: e.target.value})} required />
+                   <div className="flex gap-2">
+                      <input className="input-modern flex-1" type="number" step="0.01" placeholder={t.price_label} value={itemForm.price} onChange={e=>setItemForm({...itemForm, price: e.target.value})} required />
+                      <button type="submit" className="bg-teal-400 text-black px-8 rounded-2xl font-black uppercase italic text-xs shadow-lg shadow-teal-400/20 active:scale-95 transition-all">List</button>
+                   </div>
+                </form>
+             </div>
+
              <div className="grid grid-cols-2 gap-4 pb-20">
                 {inventory.map(item => (
                   <div key={item.id} className="glass-card !p-4 relative group hover:border-white/20 transition-all">
@@ -256,17 +312,49 @@ export default function VendorDashboard({ user, lang }) {
           </motion.div>
         )}
 
+        {/* VIEW: RESIDENTS (CRM) */}
         {activeTab === 'residents' && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} key="residents" className="space-y-4 pb-20">
-             {/* Residents/CRM content remains the same */}
+             {residents.length === 0 ? (
+               <div className="p-20 text-center opacity-20 italic text-xs font-bold uppercase tracking-widest">{t.no_residents}</div>
+             ) : (
+               residents.map(r => (
+                 <div key={r.id} className={`glass-card !p-6 border-white/5 ${r.status === 'pending' ? 'border-orange-500/30 bg-orange-500/[0.02]' : ''}`}>
+                    <div className="flex justify-between items-start mb-6">
+                       <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 bg-white/5 rounded-[18px] flex items-center justify-center font-black uppercase shadow-inner border border-white/5 text-teal-400">
+                             {r.users?.name?.[0] || 'U'}
+                          </div>
+                          <div>
+                             <p className="font-black text-lg italic">{r.users?.name || "Resident"}</p>
+                             <p className="text-[10px] text-white/30 font-bold uppercase tracking-tighter mt-0.5">ID: {r.telegram_id}</p>
+                          </div>
+                       </div>
+                       <span className={`text-[8px] font-black uppercase px-2 py-1 rounded-lg ${r.status === 'approved' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-orange-500/20 text-orange-400 animate-pulse'}`}>
+                          {r.status === 'approved' ? t.approved : t.pending}
+                       </span>
+                    </div>
+
+                    <div className="flex gap-2">
+                       {r.status === 'pending' && (
+                         <button onClick={() => handleApproveResident(r.id)} className="flex-1 bg-teal-400 text-black py-4 rounded-2xl text-[10px] font-black uppercase flex items-center justify-center gap-2 active:scale-95 transition-all">
+                            <UserCheck size={14} /> {t.approve_btn}
+                         </button>
+                       )}
+                       <button onClick={() => openResidentChat(r.telegram_id)} className="flex-1 bg-white/5 border border-white/10 text-white py-4 rounded-2xl text-[10px] font-black uppercase flex items-center justify-center gap-2 active:scale-95 transition-all group">
+                          <MessageCircle size={14} className="text-blue-400 group-hover:scale-110 transition-transform" /> {t.chat_btn}
+                       </button>
+                    </div>
+                 </div>
+               ))
+             )}
           </motion.div>
         )}
-
+        
         {/* VIEW: SHOP SETTINGS (EXPANDED) */}
         {activeTab === 'shop' && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} key="shop" className="space-y-6 pb-24">
-             
-             {/* 1. SHOP PROFILE DATA */}
+             {/* All the new shop profile form fields are here */}
              <div className="glass-card space-y-5">
                 <h3 className="text-[10px] font-black uppercase tracking-[3px] mb-2 flex items-center gap-2">
                    <Settings size={14} className="text-teal-400" /> Merchant Identity
@@ -343,14 +431,11 @@ export default function VendorDashboard({ user, lang }) {
                 </div>
              </div>
 
-
              <button onClick={handleSyncIdentity} disabled={isSyncing} className="btn-primary w-full !py-6 uppercase italic text-[11px] tracking-[4px] !rounded-[24px]">
                 {isSyncing ? <RefreshCw className="animate-spin mx-auto" size={24}/> : <div className="flex items-center gap-2 justify-center"><Save size={18}/> {t.sync_btn}</div>}
              </button>
-
           </motion.div>
         )}
-
       </AnimatePresence>
     </div>
   );
