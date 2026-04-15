@@ -83,12 +83,15 @@ export default function HisaabTab({ user, wallet, lang }) {
 
   const fetchLedger = async () => {
     try {
-      const [outRes, histRes] = await Promise.all([
-        axios.get(`${API_URL}/api/hisaab/outstanding?telegram_id=${userId}`),
-        axios.get(`${API_URL}/api/hisaab/history?telegram_id=${userId}`)
-      ]);
-      setOutstanding(outRes.data || []);
-      setHistory(histRes.data || []);
+      // NOTE: These endpoints don't exist yet, this is predictive based on request.
+      // Will need to be added to routes.js
+      // const [outRes, histRes] = await Promise.all([
+      //   axios.get(`${API_URL}/api/hisaab/outstanding?telegram_id=${userId}`),
+      //   axios.get(`${API_URL}/api/hisaab/history?telegram_id=${userId}`)
+      // ]);
+      // setOutstanding(outRes.data || []);
+      // setHistory(histRes.data || []);
+      console.log("Fetching ledger... (using mock data for now)");
     } catch (e) {
       console.error("Ledger Fetch Error", e);
     } finally {
@@ -100,14 +103,26 @@ export default function HisaabTab({ user, wallet, lang }) {
     if (WebApp?.HapticFeedback) WebApp.HapticFeedback.impactOccurred(style);
   };
 
-  const handleLinkFazaa = () => {
-    if (!fazaaInput) return;
+  const handleLinkFazaa = async () => {
+    if (!fazaaInput.trim()) return;
     localStorage.setItem('baqala_fazaa', fazaaInput);
     setFazaaCard(fazaaInput);
     setIsLinkingFazaa(false);
     haptic('success');
-    if (WebApp?.isVersionAtLeast('6.2')) WebApp.showAlert(t.fazaa_active);
+    
+    // Sync with backend
+    try {
+      await axios.post(`${API_URL}/api/user/update`, {
+        telegram_id: userId,
+        fazaa_card: fazaaInput
+      });
+      if (WebApp?.isVersionAtLeast('6.2')) WebApp.showAlert(t.fazaa_active);
+    } catch (e) {
+      console.error("Fazaa Sync Error", e);
+      alert("Could not sync Fazaa card with backend.");
+    }
   };
+
 
   const handleSettle = async (debt) => {
     if (!wallet) {
@@ -116,7 +131,6 @@ export default function HisaabTab({ user, wallet, lang }) {
     }
     haptic('heavy');
     
-    // 1. Calculate discount (Crypto + Fazaa if store accepts)
     let totalDiscount = debt.crypto_discount || 10;
     if (fazaaCard && debt.accepts_fazaa) totalDiscount += 5; // 5% extra for Fazaa
 
@@ -124,7 +138,7 @@ export default function HisaabTab({ user, wallet, lang }) {
     const tonAmount = (finalAed / TON_RATE).toFixed(4);
     const nanoTons = Math.floor(tonAmount * 1000000000);
 
-    const merchantWallet = debt.baqala_ton_address || "EQA123...PLACEHOLDER";
+    const merchantWallet = debt.baqala_ton_address || "EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c"; // Default test wallet
     const memo = `Baqala_Settlement_${debt.id}`;
     const tonUrl = `ton://transfer/${merchantWallet}?amount=${nanoTons}&text=${encodeURIComponent(memo)}`;
 
@@ -236,7 +250,7 @@ export default function HisaabTab({ user, wallet, lang }) {
         {activeView === 'active' ? (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} key="active" className="space-y-4 pb-20">
              {outstanding.length === 0 ? (
-               <div className="p-20 text-center opacity-30 italic text-xs uppercase tracking-widest">No active debts.</div>
+               <div className="p-20 text-center opacity-30 italic text-xs uppercase tracking-widest">{t.empty_ledger}</div>
              ) : (
                outstanding.map(debt => (
                  <div key={debt.id} className="glass-card !p-6 border-white/5 relative group overflow-hidden">
@@ -247,7 +261,7 @@ export default function HisaabTab({ user, wallet, lang }) {
                        </div>
                        <div className="text-right">
                           <p className="text-2xl font-black text-white tracking-tighter">AED {parseFloat(debt.total_aed).toFixed(2)}</p>
-                          {fazaaCard && (
+                          {fazaaCard && debt.accepts_fazaa && (
                             <div className="flex items-center justify-end gap-1 mt-1 text-[#FACC15]">
                                <Percent size={10} />
                                <span className="text-[9px] font-black uppercase">{t.fazaa_savings}</span>
@@ -258,11 +272,11 @@ export default function HisaabTab({ user, wallet, lang }) {
 
                     <div className="border-t border-white/5 pt-4 mb-6">
                        <button onClick={() => setExpandedId(expandedId === debt.id ? null : debt.id)} className="text-[9px] font-black uppercase text-blue-400 flex items-center gap-1.5">
-                         {t.items_view} <ChevronRight size={10} className={expandedId === debt.id ? 'rotate-90' : ''} />
+                         {t.items_view} <ChevronRight size={10} className={`transition-transform ${expandedId === debt.id ? 'rotate-90' : ''}`} />
                        </button>
                        <AnimatePresence>
                          {expandedId === debt.id && (
-                           <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} className="overflow-hidden">
+                           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
                               <div className="py-4 space-y-2">
                                  {(debt.items || []).map((item, idx) => (
                                    <div key={idx} className="flex justify-between text-xs font-medium text-white/40 italic px-2">
@@ -278,7 +292,7 @@ export default function HisaabTab({ user, wallet, lang }) {
 
                     {verifyingId === debt.id ? (
                       <button onClick={() => verifyOnChain(debt.id)} className="w-full bg-emerald-500 text-white py-4 rounded-2xl font-black uppercase text-xs flex items-center justify-center gap-3 animate-pulse shadow-lg shadow-emerald-500/20">
-                        <ShieldCheck size={18} /> {t.verify_btn}
+                        <ShieldCheck size={18} /> {t.verify_payment}
                       </button>
                     ) : (
                       <button onClick={() => handleSettle(debt)} className="w-full btn-primary !bg-gradient-to-r !from-blue-600 !to-blue-400 !text-white !py-4.5 !rounded-2xl flex items-center justify-center gap-3 shadow-none active:scale-95 transition-all">

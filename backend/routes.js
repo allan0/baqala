@@ -1,5 +1,5 @@
 // ================================================
-// backend/routes.js - VERSION 13 (PRO-SPEC)
+// backend/routes.js - VERSION 14 (with Notifications)
 // ================================================
 
 const express = require('express');
@@ -8,6 +8,35 @@ const { OpenAI } = require('openai');
 const router = express.Router();
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// --- INTERNAL: Notification Creation Helper ---
+async function createNotification(req, payload) {
+  const { recipient_telegram_id, profile_type, icon, title, message, cta_text, cta_link } = payload;
+  
+  try {
+    // 1. Save to database
+    const { data, error } = await supabase
+      .from('notifications')
+      .insert([{
+        recipient_telegram_id: recipient_telegram_id.toString(),
+        profile_type,
+        icon,
+        title,
+        message,
+        cta_text,
+        cta_link
+      }]);
+    if (error) throw error;
+
+    // 2. Send real-time push via Telegram bot
+    // req.bot is passed via middleware in bot.js
+    if (req.bot?.sendNotification) {
+      await req.bot.sendNotification(recipient_telegram_id, `*${title}*\n${message}`);
+    }
+  } catch (err) {
+    console.error(`Failed to create notification for ${recipient_telegram_id}:`, err);
+  }
+}
 
 // --- UTILITY: ATOMIC USER SYNC ---
 // Handles profile updates, photo sync, and Fazaa card linking
@@ -37,7 +66,52 @@ async function syncUserRecord(tgId, payload = {}) {
 }
 
 // ==========================================
-// 1. RESIDENT IDENTITY & PROFILE
+// 1. NOTIFICATIONS ENDPOINTS (NEW)
+// ==========================================
+
+// Fetch all notifications for a user
+router.get('/notifications', async (req, res) => {
+    const { telegram_id } = req.query;
+    if (!telegram_id) return res.status(400).json({ error: "telegram_id is required" });
+
+    try {
+        const { data, error } = await supabase
+            .from('notifications')
+            .select('*')
+            .eq('recipient_telegram_id', telegram_id.toString())
+            .order('created_at', { ascending: false })
+            .limit(50); // Limit to last 50 notifications
+
+        if (error) throw error;
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Mark all notifications as read for a user and profile type
+router.post('/notifications/read', async (req, res) => {
+    const { telegram_id, profile_type } = req.body;
+    if (!telegram_id || !profile_type) {
+        return res.status(400).json({ error: "telegram_id and profile_type are required" });
+    }
+
+    try {
+        const { error } = await supabase
+            .from('notifications')
+            .update({ is_read: true })
+            .eq('recipient_telegram_id', telegram_id.toString())
+            .eq('profile_type', profile_type);
+        
+        if (error) throw error;
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ==========================================
+// 2. RESIDENT IDENTITY & PROFILE
 // ==========================================
 
 // Update Resident Profile (Display Name & Fazaa)
@@ -50,7 +124,7 @@ router.post('/user/update', async (req, res) => {
 });
 
 // ==========================================
-// 2. MERCHANT HUB (IDENTITY & CRM)
+// 3. MERCHANT HUB (IDENTITY & CRM)
 // ==========================================
 
 // Get Baqala by Owner ID + CRM data (FIX FOR VENDOR DASHBOARD)
@@ -83,7 +157,6 @@ router.get('/baqala/owner/:ownerId', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 
 // Register Baqala
 router.post('/baqala/register', async (req, res) => {
@@ -144,30 +217,50 @@ router.post('/baqala/:baqalaId/settings', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Approve/Reject Hisaab Resident
+// Approve/Reject Hisaab Resident (WITH NOTIFICATION LOGIC)
 router.post('/hisaab/approve', async (req, res) => {
   const { application_id, status } = req.body; 
   try {
-    const { data, error } = await supabase
+    // Get full application details including user and baqala info
+    const { data: application, error } = await supabase
       .from('hisaab_applications')
       .update({ status })
       .eq('id', application_id)
-      .select().single();
+      .select('*, users(name), baqalas(name, owner_telegram_id)')
+      .single();
 
     if (error) throw error;
+    if (!application) return res.status(404).json({ error: 'Application not found' });
+    
+    // --- NOTIFICATION LOGIC ---
+    if (status === 'approved') {
+      // Notify the RESIDENT
+      await createNotification(req, {
+        recipient_telegram_id: application.telegram_id,
+        profile_type: 'resident',
+        icon: 'CheckCircle2',
+        title: 'Hisaab Approved!',
+        message: `Your credit application at ${application.baqalas.name} has been approved. You can now shop on credit.`,
+        cta_text: 'Shop Now',
+        cta_link: `/store/${application.baqala_id}`
+      });
+      // Notify the MERCHANT (confirmation)
+       await createNotification(req, {
+        recipient_telegram_id: application.baqalas.owner_telegram_id,
+        profile_type: 'merchant',
+        icon: 'UserCheck',
+        title: 'Resident Approved',
+        message: `You have approved ${application.users.name || 'a resident'}'s credit application.`
+      });
+    }
 
-    // TODO: Add notification logic here
-    // if (status === 'approved') {
-    //   const app = data;
-    //   createNotification({ telegram_id: app.telegram_id, ... })
-    // }
-
-    res.json({ success: true, application: data });
+    res.json({ success: true, application });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+
 // ==========================================
-// 3. NETWORK DISCOVERY & HISAAB
+// 4. NETWORK DISCOVERY & HISAAB
 // ==========================================
 
 router.get('/baqalas/nearby', async (req, res) => {
@@ -202,22 +295,36 @@ router.post('/hisaab/apply', async (req, res) => {
   const { telegram_id, baqala_id, name } = req.body;
   try {
     await syncUserRecord(telegram_id, { name });
-    const { data, error } = await supabase
+    const { data: application, error } = await supabase
       .from('hisaab_applications')
       .upsert({ 
         telegram_id: telegram_id.toString(), 
         baqala_id, 
         status: 'pending' 
       }, { onConflict: 'telegram_id, baqala_id' })
-      .select().single();
+      .select('*, baqalas(name, owner_telegram_id)')
+      .single();
 
     if (error) throw error;
+
+    // --- NOTIFICATION LOGIC ---
+    // Notify the MERCHANT of a new request
+    await createNotification(req, {
+        recipient_telegram_id: application.baqalas.owner_telegram_id,
+        profile_type: 'merchant',
+        icon: 'UserPlus',
+        title: 'New Hisaab Request',
+        message: `${name || 'A new resident'} has requested to open a credit tab at ${application.baqalas.name}.`,
+        cta_text: 'Review',
+        cta_link: '/residents'
+    });
+
     res.json({ success: true, application: data });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ==========================================
-// 4. SETTLEMENT & VERIFICATION
+// 5. SETTLEMENT & VERIFICATION
 // ==========================================
 
 router.post('/hisaab/pay', async (req, res) => {
@@ -226,7 +333,7 @@ router.post('/hisaab/pay', async (req, res) => {
     // 1. Fetch debt details
     const { data: debt } = await supabase
       .from('hisaab_debts')
-      .select('*, baqalas(name)')
+      .select('*, baqalas(name, owner_telegram_id)')
       .eq('id', debt_id)
       .single();
 
@@ -246,13 +353,24 @@ router.post('/hisaab/pay', async (req, res) => {
 
     // 3. Delete active debt
     await supabase.from('hisaab_debts').delete().eq('id', debt_id);
+    
+    // --- NOTIFICATION LOGIC ---
+    // Notify the Merchant of payment
+    await createNotification(req, {
+        recipient_telegram_id: debt.baqalas.owner_telegram_id,
+        profile_type: 'merchant',
+        icon: 'CheckCircle2',
+        title: 'Hisaab Settled',
+        message: `A debt of AED ${debt.total_aed.toFixed(2)} has been settled by a resident via ${method}.`
+    });
+
     res.json({ success: true });
     
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ==========================================
-// 5. AI GENIE PARSING
+// 6. AI GENIE PARSING
 // ==========================================
 
 router.post('/ai/parse', async (req, res) => {
