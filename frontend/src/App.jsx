@@ -1,5 +1,5 @@
 // ================================================
-// frontend/src/App.jsx - VERSION 24 (TOTAL RESTORATION)
+// frontend/src/App.jsx - VERSION 25 (TOTAL RESTORATION)
 // ================================================
 import React, { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -24,23 +24,23 @@ const API_URL = import.meta.env.VITE_API_URL || "https://baqala-i2oi.onrender.co
 
 const translations = {
   en: {
-    tagline: "The Digital Hisaab Network",
+    tagline: "THE DIGITAL HISAB NETWORK",
     role_resident: "Neighborhood Resident",
-    role_merchant: "Baqala Manager",
+    role_merchant: "Baqala Owner",
     nav_home: "Home",
     nav_ledger: "Ledger",
     nav_me: "Me",
     profile_title: "Identity Hub",
-    kyc_status: "Identity Verified",
+    kyc_status: "Verified Neighbor",
     link_google: "Link Google Account",
-    link_cta: "Secure your credit tab and sync with your neighborhood identity.",
-    linked: "Identity Linked",
-    logout: "Sign Out / Exit",
+    link_cta: "Secure your account and sync with your neighborhood identity.",
+    linked: "Identity Verified",
+    logout: "Exit Grid",
     guest_mode: "Guest Resident",
     manage_store: "Manage My Store",
     become_merchant: "Open a Storefront",
     fazaa_label: "Fazaa Member ID",
-    fazaa_link: "Link Card",
+    fazaa_link: "Update ID",
     lang_btn: "العربية"
   },
   ar: {
@@ -54,13 +54,13 @@ const translations = {
     kyc_status: "هوية موثقة",
     link_google: "ربط حساب جوجل",
     link_cta: "امن حسابك ووثق هويتك الرقمية في الشبكة.",
-    linked: "تم ربط الهوية",
+    linked: "هوية موثقة",
     logout: "خروج",
     guest_mode: "زائر",
     manage_store: "إدارة دكاني",
     become_merchant: "تسجيل دكان جديد",
     fazaa_label: "رقم بطاقة فزعة",
-    fazaa_link: "ربط البطاقة",
+    fazaa_link: "تحديث الرقم",
     lang_btn: "English"
   }
 };
@@ -69,7 +69,7 @@ export default function App() {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('home');
-  const [viewMode, setViewMode] = useState('customer'); // Toggle between resident/merchant dashboards
+  const [viewMode, setViewMode] = useState('customer'); // Switches between Resident/Merchant views
   const [lang, setLang] = useState(localStorage.getItem('baqala_lang') || 'en');
   const [fazaaInput, setFazaaInput] = useState('');
 
@@ -77,14 +77,14 @@ export default function App() {
   const isRTL = lang === 'ar';
 
   // ==========================================
-  // 1. IDENTITY & TELEGRAM SYNC
+  // 1. IDENTITY & TELEGRAM SYNC ENGINE
   // ==========================================
 
   useEffect(() => {
     const initApp = async () => {
       setLoading(true);
 
-      // A. IF INSIDE TELEGRAM: Auto-sync photo and username
+      // A. IF INSIDE TELEGRAM: Automatically sync profile
       if (WebApp?.initDataUnsafe?.user) {
         const tgUser = WebApp.initDataUnsafe.user;
         WebApp.expand();
@@ -95,21 +95,20 @@ export default function App() {
             headers: { 
               telegram_id: tgUser.id.toString(),
               display_name: tgUser.username || tgUser.first_name,
-              avatar_url: tgUser.photo_url || null // This picks up the TG photo
+              avatar_url: tgUser.photo_url || null
             }
           });
           if (res.data.user) setProfile(res.data.user);
         } catch (e) {
-          console.error("Auto-Sync Failed:", e);
+          console.error("Auto-Sync Failure:", e);
         }
         setLoading(false);
       } 
-      // B. IF ON WEB: Check Supabase session
+      // B. IF ON WEB: Check Supabase session, else remain as Guest
       else {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) await fetchProfile(session.user.id);
         
-        // Listen for Gmail login events
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
           if (session) await fetchProfile(session.user.id);
           else setProfile(null);
@@ -123,8 +122,13 @@ export default function App() {
   }, []);
 
   const fetchProfile = async (uid) => {
-    const { data } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle();
-    if (data) setProfile(data);
+    // We hit our sync endpoint to ensure all headers/merging logic in routes.js are applied
+    try {
+      const res = await axios.post(`${API_URL}/api/user/sync`, {}, {
+        headers: { auth_id: uid }
+      });
+      if (res.data.user) setProfile(res.data.user);
+    } catch (e) { console.error("Profile Fetch Error", e); }
   };
 
   // ==========================================
@@ -132,10 +136,10 @@ export default function App() {
   // ==========================================
 
   const handleGmailLink = async () => {
-    const redirectUrl = window.location.origin.replace(/\/$/, "");
+    const cleanOrigin = window.location.origin.replace(/\/$/, "");
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: redirectUrl }
+      options: { redirectTo: cleanOrigin }
     });
     if (error) alert(error.message);
   };
@@ -151,14 +155,14 @@ export default function App() {
       if (error) throw error;
       setProfile(data);
       setFazaaInput('');
-      alert("Fazaa record updated on ledger.");
-    } catch (e) { alert("Fazaa update failed."); }
+      alert("Ledger updated with Fazaa ID.");
+    } catch (e) { alert("Fazaa linking failed."); }
   };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     localStorage.clear();
-    window.location.reload(); // Returns user to Guest mode
+    window.location.reload(); 
   };
 
   const toggleLanguage = () => {
@@ -168,31 +172,31 @@ export default function App() {
   };
 
   // ==========================================
-  // 3. UI RENDERING
+  // 3. UI RENDERING logic
   // ==========================================
 
   if (loading) return (
     <div className="min-h-screen bg-[#0a0a0f] flex flex-col items-center justify-center">
       <RefreshCw className="animate-spin text-teal-400 mb-4" size={32} />
-      <p className="text-[10px] font-black uppercase tracking-[5px] text-white/30 animate-pulse">Initializing Protocol</p>
+      <p className="text-[10px] font-black uppercase tracking-[5px] text-white/30 animate-pulse">Syncing Grid</p>
     </div>
   );
 
   return (
     <div className={`min-h-screen bg-[#0a0a0f] text-white flex flex-col overflow-hidden font-sans select-none ${isRTL ? 'font-arabic text-right' : ''}`}>
       
-      {/* --- TOP HEADER (RESTORED SHIMMER & ROUNDED LOGO) --- */}
+      {/* --- TOP HEADER (ROUNDED LOGO + SHIMMERING BRANDING) --- */}
       <header className="px-6 py-5 flex justify-between items-center bg-[#0a0a0f]/80 backdrop-blur-2xl sticky top-0 z-50 border-b border-white/5">
         <div className="flex items-center gap-4">
           <div className="relative">
             {profile?.avatar_url ? (
-              <img src={profile.avatar_url} className="w-11 h-11 rounded-full border-2 border-teal-400/20 shadow-xl" alt="P" />
+              <img src={profile.avatar_url} className="w-11 h-11 rounded-full border-2 border-teal-400/20 shadow-xl" alt="Identity" />
             ) : (
               <div className="w-11 h-11 bg-white/5 rounded-full flex items-center justify-center border border-white/10 shadow-lg">
-                <UserCircle size={24} className="text-white/20" />
+                <UserCircle size={26} className="text-white/20" />
               </div>
             )}
-            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-500 rounded-full border-2 border-[#0a0a0f]" />
+            {profile && <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-500 rounded-full border-2 border-[#0a0a0f]" />}
           </div>
           <div>
             <motion.h1 
@@ -203,7 +207,7 @@ export default function App() {
               BAQALAS
             </motion.h1>
             <p className="text-[9px] font-black text-white/30 uppercase tracking-[2px] mt-1.5 leading-none">
-               {profile ? (profile.role === 'merchant' ? t.role_merchant : t.role_resident) : t.guest_mode}
+               {profile ? (profile.role === 'merchant' ? t.role_merchant : t.role_resident) : t.tagline}
             </p>
           </div>
         </div>
@@ -225,12 +229,12 @@ export default function App() {
               {activeTab === 'home' && <CustomerDashboard user={profile || {id: 'guest'}} lang={lang} setActiveTab={setActiveTab} />}
               {activeTab === 'hisaab' && <HisaabTab user={profile} lang={lang} setActiveTab={setActiveTab} />}
               
-              {/* --- TAB: ME (RESTORED IDENTITY Hub) --- */}
+              {/* --- TAB: ME (IDENTITY & MERCHANT LINKING) --- */}
               {activeTab === 'profile' && (
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="p-6 space-y-6">
                   
                   {/* Account Identity Card */}
-                  <div className="glass-card !p-8 relative overflow-hidden bg-gradient-to-br from-white/[0.03] to-transparent">
+                  <div className="glass-card !p-8 relative overflow-hidden bg-gradient-to-br from-white/[0.03] to-transparent rounded-[32px]">
                     <div className="absolute top-0 right-0 p-10 opacity-5 -rotate-12 text-teal-400"><LayoutDashboard size={160}/></div>
                     <div className="flex items-center gap-6 relative z-10">
                        <div className="w-20 h-20 rounded-full border-4 border-[#0a0a0f] shadow-2xl overflow-hidden bg-black/40 flex items-center justify-center">
@@ -241,9 +245,9 @@ export default function App() {
                           )}
                        </div>
                        <div>
-                          <h3 className="font-black italic text-2xl tracking-tight leading-tight text-white">{profile?.display_name || "Anonymous Grid"}</h3>
+                          <h3 className="font-black italic text-2xl tracking-tight leading-tight text-white">{profile?.display_name || "Guest Resident"}</h3>
                           <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest mt-1">
-                             {profile?.email || (profile?.telegram_id ? `TG: ${profile.telegram_id}` : "GUEST ACCOUNT")}
+                             {profile?.email || (profile?.telegram_id ? `TG ID: ${profile.telegram_id}` : "GUEST ACCOUNT")}
                           </p>
                           <div className="mt-4 inline-flex items-center gap-2 px-3 py-1 bg-teal-400/10 rounded-full border border-teal-400/20">
                              <ShieldCheck size={10} className="text-teal-400" />
@@ -253,19 +257,19 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* MERCHANT HUB ACCESS (FIXED) */}
+                  {/* MERCHANT GATEWAY (Switch logic restored) */}
                   <div className="space-y-3">
-                     <h4 className="text-[10px] font-black uppercase tracking-[3px] text-white/20 mb-4 ml-2">Business Operations</h4>
+                     <h4 className="text-[10px] font-black uppercase tracking-[3px] text-white/20 mb-4 ml-2">Neighborhood Commerce</h4>
                      <button 
                         onClick={() => setViewMode('vendor')}
-                        className={`w-full flex items-center justify-between p-5 rounded-[28px] border group active:scale-95 transition-all shadow-xl ${
+                        className={`w-full flex items-center justify-between p-6 rounded-[28px] border group active:scale-95 transition-all shadow-xl ${
                           profile?.role === 'merchant' 
                             ? 'bg-gradient-to-r from-teal-400/20 to-transparent border-teal-400/20' 
                             : 'bg-white/5 border-white/10'
                         }`}
                      >
                         <div className="flex items-center gap-5">
-                           <div className={`p-3 rounded-full shadow-inner ${profile?.role === 'merchant' ? 'bg-teal-400/20 text-teal-400' : 'bg-white/5 text-white/40'}`}>
+                           <div className={`w-12 h-12 rounded-full flex items-center justify-center shadow-inner ${profile?.role === 'merchant' ? 'bg-teal-400 text-black' : 'bg-white/5 text-white/40'}`}>
                               <Store size={22}/>
                            </div>
                            <span className={`text-sm font-black italic uppercase tracking-tight ${profile?.role === 'merchant' ? 'text-teal-400' : 'text-white/60'}`}>
@@ -276,41 +280,40 @@ export default function App() {
                      </button>
                   </div>
 
-                  {/* ACCOUNT UPGRADE (GMAIL LINKING) */}
+                  {/* GMAIL UPGRADE (Visible for TG/Guest users) */}
                   {!profile?.email && (
-                     <div className="p-8 bg-[#1a1f2e] border border-blue-500/20 rounded-[32px] shadow-2xl relative overflow-hidden">
+                     <div className="p-8 bg-[#1a1f2e] border border-blue-500/10 rounded-[32px] shadow-2xl relative overflow-hidden">
                         <Chrome size={80} className="absolute -right-4 -top-4 text-blue-500/5 rotate-12" />
                         <div className="flex items-center gap-4 mb-4 relative z-10">
                            <div className="p-3 bg-blue-500/20 rounded-full text-blue-400"><Chrome size={20}/></div>
                            <p className="text-[11px] font-black uppercase text-blue-400 tracking-widest">{t.link_google}</p>
                         </div>
                         <p className="text-[11px] text-white/40 mb-8 leading-relaxed font-medium relative z-10">{t.link_cta}</p>
-                        <button onClick={handleGmailLink} className="w-full bg-white text-black py-4.5 rounded-[20px] font-black italic uppercase text-xs active:scale-95 transition-all shadow-2xl shadow-blue-500/20">
-                           SYNC WITH GOOGLE
+                        <button onClick={handleGmailLink} className="w-full bg-white text-black py-5 rounded-[22px] font-black italic uppercase text-xs active:scale-95 transition-all shadow-2xl shadow-blue-500/20">
+                           UPGRADE WITH GOOGLE
                         </button>
                      </div>
                   )}
 
                   {/* FAZAA Hub RESTORATION */}
-                  <div className="glass-card border-orange-500/20 shadow-xl">
+                  <div className="glass-card border-white/5 shadow-xl rounded-[32px]">
                      <div className="flex justify-between items-center mb-8">
-                        <h4 className="text-[11px] font-black uppercase tracking-[4px] text-orange-500 flex items-center gap-3">
-                           <Zap size={16} fill="currentColor" /> Benefits Hub
+                        <h4 className="text-[11px] font-black uppercase tracking-[4px] text-teal-400 flex items-center gap-3">
+                           <Zap size={16} fill="currentColor" /> {t.fazaa_label}
                         </h4>
-                        {profile?.fazaa_card && <div className="bg-emerald-500/20 text-emerald-400 text-[8px] font-black uppercase px-3 py-1 rounded-full border border-emerald-500/20">Card Active</div>}
+                        {profile?.fazaa_card && <div className="bg-emerald-500/20 text-emerald-400 text-[8px] font-black uppercase px-3 py-1 rounded-full border border-emerald-500/20">Verified</div>}
                      </div>
                      <div className="space-y-4">
-                        <p className="text-[10px] font-black uppercase text-white/30 ml-2 tracking-widest">{t.fazaa_label}</p>
                         <div className="flex gap-3">
                            <input 
-                              className="input-modern flex-1 !py-4 !text-sm !rounded-[20px] !bg-white/[0.02] border-white/5" 
-                              placeholder="7-Digit Card ID"
+                              className="input-modern flex-1 !py-4 !text-base !rounded-[20px] !bg-white/[0.02] border-white/5" 
+                              placeholder="Fazaa ID Card"
                               value={profile?.fazaa_card || fazaaInput}
                               onChange={e => setFazaaInput(e.target.value)}
                               disabled={!!profile?.fazaa_card}
                            />
                            {!profile?.fazaa_card && (
-                             <button onClick={handleUpdateFazaa} className="bg-teal-400 text-black px-8 rounded-[20px] font-black uppercase text-[11px] active:scale-90 shadow-lg shadow-teal-400/20 transition-all">
+                             <button onClick={handleUpdateFazaa} className="bg-white text-black px-8 rounded-[20px] font-black uppercase text-[11px] active:scale-90 shadow-lg transition-all hover:bg-teal-400">
                                 {t.fazaa_link}
                              </button>
                            )}
@@ -318,15 +321,15 @@ export default function App() {
                      </div>
                   </div>
 
-                  {/* Logout Button (RESTORED LOGIC) */}
+                  {/* RESTORED LOGOUT */}
                   {profile && (
-                     <button onClick={handleLogout} className="w-full flex items-center justify-center gap-4 py-8 text-[11px] font-black uppercase tracking-[5px] text-red-500/40 hover:text-red-500 transition-all group active:scale-95">
-                        <LogOut size={22} className="group-hover:rotate-12 transition-transform" /> {t.logout}
+                     <button onClick={handleLogout} className="w-full flex items-center justify-center gap-4 py-8 text-[11px] font-black uppercase tracking-[5px] text-red-500/40 hover:text-red-500 transition-all active:scale-95">
+                        <LogOut size={22} /> {t.logout}
                      </button>
                   )}
 
                   <p className="text-center text-[10px] text-white/10 font-bold uppercase tracking-[8px] pt-10 italic">
-                     Baqala Protocol v1.3.5
+                     Baqala Protocol v1.4.0-PROD
                   </p>
                 </motion.div>
               )}
@@ -335,9 +338,9 @@ export default function App() {
         </AnimatePresence>
       </main>
 
-      {/* --- BOTTOM NAVIGATION (RESTORED Hub) --- */}
+      {/* --- BOTTOM NAVIGATION --- */}
       {viewMode === 'customer' && (
-        <nav className="fixed bottom-0 left-0 right-0 h-28 bg-[#0a0a0f]/90 backdrop-blur-3xl border-t border-white/5 px-12 flex justify-between items-center z-50">
+        <nav className="fixed bottom-0 left-0 right-0 h-28 bg-[#0a0a0f]/95 backdrop-blur-3xl border-t border-white/5 px-12 flex justify-between items-center z-50">
           {[
             { id: 'home', icon: Home, label: t.nav_home },
             { id: 'hisaab', icon: Wallet, label: t.nav_ledger },
@@ -355,11 +358,11 @@ export default function App() {
         </nav>
       )}
 
-      {/* EXIT MERCHANT MODE BUTTON */}
+      {/* EXIT MERCHANT PORTAL */}
       {viewMode === 'vendor' && (
         <button 
           onClick={() => setViewMode('customer')}
-          className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-white text-black px-10 py-4 rounded-full font-black uppercase text-[11px] shadow-[0_20px_50px_rgba(0,0,0,0.8)] z-[100] active:scale-95 transition-all italic tracking-tighter"
+          className="fixed bottom-12 left-1/2 -translate-x-1/2 bg-white text-black px-10 py-4 rounded-full font-black uppercase text-[11px] shadow-[0_20px_60px_rgba(0,0,0,0.9)] z-[100] active:scale-95 transition-all"
         >
           ← Return to Neighborhood
         </button>
