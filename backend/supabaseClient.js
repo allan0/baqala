@@ -1,5 +1,5 @@
 // ================================================
-// backend/supabaseClient.js - VERSION 2.0 (Tokenomics + PI Ready)
+// backend/supabaseClient.js - VERSION 3.0 (Web3 & Tokenomics Engine)
 // ================================================
 
 const { createClient } = require('@supabase/supabase-js');
@@ -14,82 +14,118 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 /**
- * Standard Supabase Client (used by most routes)
+ * Core Supabase Client
  */
 const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false,
-  },
-  global: {
-    headers: { 'x-application-name': 'baqala-network' }
   }
 });
 
 /**
- * RLS Scoped Client - Critical for Telegram users
- * Uses the custom policy: current_setting('app.current_telegram_id')
+ * IDENTITY RESOLVER
+ * Converts a Telegram ID into a Supabase Profile UUID.
+ * Creates the profile and initial token balance if they don't exist.
  */
-const getScopedClient = (telegramId) => {
-  if (!telegramId) {
-    console.warn("⚠️ getScopedClient called without telegramId");
-    return supabase;
-  }
+async function resolveProfile(telegramId, displayName = 'Resident', avatarUrl = null) {
+  if (!telegramId) return null;
+  const tgStr = telegramId.toString();
 
-  return createClient(supabaseUrl, supabaseAnonKey, {
-    global: {
-      headers: {
-        'x-app-telegram-id': telegramId.toString(),
-      },
-    },
-    db: {
-      schema: 'public',
-    },
-  });
-};
-
-/**
- * Sets the RLS context for the current transaction
- * This satisfies the PostgreSQL policy we created in the SQL schema
- */
-async function setRlsContext(client, telegramId) {
-  if (!telegramId) return;
   try {
-    await client.rpc('set_app_context', { tg_id: telegramId.toString() });
+    // 1. Check for existing profile
+    let { data: profile, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('telegram_id', tgStr)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    // 2. Create profile if it's a first-time user
+    if (!profile) {
+      const { data: newProfile, error: createError } = await supabase
+        .from('profiles')
+        .insert([{
+          telegram_id: tgStr,
+          display_name: displayName,
+          avatar_url: avatarUrl,
+          role: 'resident'
+        }])
+        .select()
+        .single();
+      
+      if (createError) throw createError;
+      profile = newProfile;
+    }
+
+    // 3. Ensure Token Balance row exists and check for Monthly Unlocks
+    await ensureTokenomics(profile.id);
+
+    return profile;
   } catch (err) {
-    console.error("Failed to set RLS context:", err.message);
+    console.error("❌ Profile Resolution Error:", err.message);
+    return null;
   }
 }
 
 /**
- * Quick helper to get or create token balance for a user
- * (Used by tokenomics logic later)
+ * TOKENOMICS ENGINE
+ * 1. Ensures a row exists in token_balances
+ * 2. Triggers the SQL function perform_monthly_unlock if 30 days have passed
  */
-async function getOrCreateTokenBalance(profileId) {
-  const { data, error } = await supabase
-    .from('token_balances')
-    .select('bqt_balance')
-    .eq('profile_id', profileId)
-    .maybeSingle();
-
-  if (error) throw error;
-
-  if (!data) {
-    const { data: newBalance } = await supabase
+async function ensureTokenomics(profileId) {
+  try {
+    const { data: balance, error: fetchError } = await supabase
       .from('token_balances')
-      .insert([{ profile_id: profileId, bqt_balance: 0 }])
-      .select()
-      .single();
-    return newBalance;
+      .select('*')
+      .eq('profile_id', profileId)
+      .maybeSingle();
+
+    if (fetchError) throw fetchError;
+
+    if (!balance) {
+      // Create initial zero balance
+      await supabase
+        .from('token_balances')
+        .insert([{ profile_id: profileId, locked_balance: 0, available_balance: 0 }]);
+      return;
+    }
+
+    // Check if it's time for the monthly 10% unlock
+    const lastUnlock = new Date(balance.last_unlock_date);
+    const now = new Date();
+    const daysSince = (now - lastUnlock) / (1000 * 60 * 60 * 24);
+
+    if (daysSince >= 30 && balance.locked_balance > 0) {
+      console.log(`💎 Triggering monthly BQT unlock for ${profileId}`);
+      const { error: rpcError } = await supabase.rpc('perform_monthly_unlock', { 
+        target_user_id: profileId 
+      });
+      if (rpcError) throw rpcError;
+    }
+  } catch (err) {
+    console.error("❌ Tokenomics Sync Error:", err.message);
   }
-  return data;
 }
 
-console.log("✅ Supabase client initialized - Baqala Network v2.0 (Tokenomics + PI Ready)");
+/**
+ * MERCHANT HELPER
+ * Fetches store details along with inventory
+ */
+async function getBaqalaByOwner(profileId) {
+  return await supabase
+    .from('baqalas')
+    .select('*, inventory(*)')
+    .eq('owner_id', profileId)
+    .maybeSingle();
+}
+
+console.log("✅ Supabase Engine v3.0 Online (BQT Tokenomics + Identity Mapping)");
 
 module.exports = {
   supabase,
-  getScopedClient,
-  setRlsContext,
-  getOrCreateTokenBalance   // ← New helper for tokenomics
+  resolveProfile,
+  ensureTokenomics,
+  getBaqalaByOwner
 };

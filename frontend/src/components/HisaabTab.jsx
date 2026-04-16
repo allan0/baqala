@@ -1,62 +1,80 @@
 // ================================================
 // frontend/src/components/HisaabTab.jsx
-// VERSION 3 (Clean Ledger + Tokenomics - AI Genie Moved to Dashboard)
+// VERSION 4.0 (Token Vault + Ledger + Web3 Ready)
 // ================================================
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { CreditCard, RefreshCw, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react';
+import { 
+  CreditCard, RefreshCw, CheckCircle2, 
+  Sparkles, Lock, Unlock, ArrowUpRight,
+  TrendingDown, Info
+} from 'lucide-react';
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || "https://baqala-i2oi.onrender.com";
+const API_URL = import.meta.env.VITE_API_URL;
+const WebApp = window.Telegram?.WebApp;
 
 const loc = {
   en: {
-    title: "My Hisaab",
-    subtitle: "Digital Credit Tabs",
-    no_debts: "No active tabs yet. Start shopping at any baqala!",
-    total_debt: "Total Outstanding",
-    bqt_balance: "Your BQT Tokens",
-    redeem: "Redeem BQT",
-    refresh: "Refresh"
+    title: "Digital Hisaab",
+    subtitle: "Your Neighborhood Ledger",
+    vault_title: "BQT Token Vault",
+    spendable: "Available to Spend",
+    locked: "Locked (Maturing)",
+    unlock_note: "10% unlocks monthly based on your activity.",
+    total_debt: "Total Outstanding Hisaab",
+    settle_btn: "Settle with TON (10% Off)",
+    no_debts: "Your ledger is clear! No active debts found.",
+    store_label: "Baqala",
+    status_open: "Open Tab",
+    refreshing: "Syncing Ledger..."
   },
   ar: {
-    title: "حسابي",
-    subtitle: "الحسابات الرقمية",
-    no_debts: "لا توجد حسابات مفتوحة حالياً. ابدأ التسوق!",
-    total_debt: "إجمالي الديون",
-    bqt_balance: "توكنات BQT الخاصة بك",
-    redeem: "استرداد BQT",
-    refresh: "تحديث"
+    title: "الحساب الرقمي",
+    subtitle: "دفتر ديون الفريج",
+    vault_title: "خزنة توكنات BQT",
+    spendable: "رصيد قابل للصرف",
+    locked: "رصيد مقيد (قيد المعالجة)",
+    unlock_note: "يتم فتح 10% من الرصيد شهرياً بناءً على نشاطك.",
+    total_debt: "إجمالي ديون الحساب",
+    settle_btn: "تسوية عبر TON (خصم 10%)",
+    no_debts: "حسابك صافي! لا توجد ديون حالياً.",
+    store_label: "الدكان",
+    status_open: "حساب مفتوح",
+    refreshing: "جاري المزامنة..."
   }
 };
 
-export default function HisaabTab({ user, lang }) {
+export default function HisaabTab({ user, lang, refreshBalances }) {
   const [debts, setDebts] = useState([]);
-  const [bqtBalance, setBqtBalance] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
+  const [balances, setBalances] = useState({ locked: 0, available: 0 });
+  const [loading, setLoading] = useState(true);
 
-  const t = loc[lang] || loc.en;
+  const t = useMemo(() => loc[lang] || loc.en, [lang]);
   const isRTL = lang === 'ar';
 
   const fetchData = async () => {
     if (!user?.id) return;
-    setIsLoading(true);
+    setLoading(true);
     try {
-      // Get open debts
+      // 1. Fetch Debts
       const ledgerRes = await axios.get(`${API_URL}/api/hisaab/ledger`, {
-        headers: { auth_id: user.id, telegram_id: user.telegram_id }
+        headers: { telegram_id: user.telegram_id }
       });
       setDebts(ledgerRes.data || []);
 
-      // Get BQT balance
+      // 2. Fetch Token Balance
       const tokenRes = await axios.get(`${API_URL}/api/token/balance`, {
-        headers: { auth_id: user.id, telegram_id: user.telegram_id }
+        headers: { telegram_id: user.telegram_id }
       });
-      setBqtBalance(tokenRes.data.bqt || 0);
+      setBalances({
+        locked: tokenRes.data.locked,
+        available: tokenRes.data.available
+      });
     } catch (e) {
-      console.error("Hisaab fetch error", e);
+      console.error("Hisaab Fetch Failed", e);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
@@ -64,72 +82,124 @@ export default function HisaabTab({ user, lang }) {
     fetchData();
   }, [user]);
 
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-80">
-        <RefreshCw className="animate-spin text-teal-400 mb-4" size={40} />
-        <p className="text-xs font-black uppercase tracking-widest text-white/30">{t.refresh}</p>
-      </div>
-    );
-  }
+  const totalDebt = useMemo(() => 
+    debts.reduce((sum, d) => sum + parseFloat(d.debt_amount || 0), 0)
+  , [debts]);
 
-  const totalDebt = debts.reduce((sum, d) => sum + parseFloat(d.debt || 0), 0);
+  const haptic = (style = 'medium') => {
+    if (WebApp?.HapticFeedback) WebApp.HapticFeedback.impactOccurred(style);
+  };
 
   return (
-    <div className={`px-5 pt-6 ${isRTL ? 'text-right' : 'text-left'}`}>
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-        {/* Header */}
-        <div className="flex justify-between items-end mb-8">
+    <div className={`px-5 py-6 ${isRTL ? 'text-right' : 'text-left'}`}>
+      <motion.div 
+        initial={{ opacity: 0, y: 15 }} 
+        animate={{ opacity: 1, y: 0 }}
+        className="space-y-6"
+      >
+        {/* HEADER */}
+        <div className="flex justify-between items-end">
           <div>
-            <h1 className="text-3xl font-black italic tracking-tighter">{t.title}</h1>
-            <p className="text-white/40 text-sm">{t.subtitle}</p>
+            <h1 className="text-4xl font-black italic tracking-tighter text-white">{t.title}</h1>
+            <p className="text-white/40 text-sm font-medium uppercase tracking-widest">{t.subtitle}</p>
           </div>
-          <button onClick={fetchData} className="p-3 bg-white/10 rounded-2xl">
-            <RefreshCw size={24} />
+          <button 
+            onClick={() => { haptic('light'); fetchData(); if(refreshBalances) refreshBalances(); }}
+            className={`p-4 bg-white/5 rounded-2xl border border-white/10 active:scale-90 transition-all ${loading ? 'animate-spin' : ''}`}
+          >
+            <RefreshCw size={20} className="text-teal-400" />
           </button>
         </div>
 
-        {/* BQT Balance Card */}
-        <div className="glass-card mb-8 border-teal-400/30 flex items-center gap-6 p-6">
-          <Sparkles size={42} className="text-teal-400" />
-          <div className="flex-1">
-            <p className="uppercase text-xs font-black tracking-[2px] text-teal-400">{t.bqt_balance}</p>
-            <p className="text-4xl font-black tracking-tighter text-teal-400">{bqtBalance.toFixed(0)} BQT</p>
+        {/* TOKEN VAULT CARD */}
+        <div className="glass-card !bg-gradient-to-br from-teal-400/10 to-orange-500/5 border-teal-400/20 p-8 relative overflow-hidden">
+          <div className="absolute -right-6 -top-6 text-teal-400/5 rotate-12">
+            <Sparkles size={160} />
           </div>
-          <button className="px-8 py-4 bg-teal-400 text-black font-black rounded-3xl text-sm active:scale-95">
-            {t.redeem}
-          </button>
+          
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 bg-teal-400 rounded-xl flex items-center justify-center text-black">
+              <Unlock size={20} strokeWidth={3} />
+            </div>
+            <h3 className="font-black italic text-lg uppercase tracking-tight text-white">{t.vault_title}</h3>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <p className="text-[10px] font-black text-teal-400 uppercase tracking-widest">{t.spendable}</p>
+              <p className="text-3xl font-black tracking-tighter">{balances.available.toFixed(0)} <span className="text-sm">BQT</span></p>
+            </div>
+            <div className="space-y-1 opacity-60">
+              <p className="text-[10px] font-black text-white/60 uppercase tracking-widest flex items-center gap-1">
+                <Lock size={10} /> {t.locked}
+              </p>
+              <p className="text-3xl font-black tracking-tighter">{balances.locked.toFixed(0)} <span className="text-sm">BQT</span></p>
+            </div>
+          </div>
+
+          <div className="mt-6 pt-4 border-t border-white/10 flex items-center gap-2">
+            <Info size={14} className="text-teal-400/50" />
+            <p className="text-[9px] font-bold text-white/30 uppercase tracking-wider">{t.unlock_note}</p>
+          </div>
         </div>
 
-        {/* Total Debt */}
-        <div className="glass-card mb-6 p-6">
+        {/* TOTAL DEBT CARD */}
+        <div className="glass-card p-8 border-white/5 bg-white/[0.02]">
+          <p className="text-[11px] font-black text-white/30 uppercase tracking-[4px] mb-2">{t.total_debt}</p>
           <div className="flex justify-between items-center">
-            <p className="text-white/50 font-medium">{t.total_debt}</p>
-            <p className="text-3xl font-black text-orange-400">AED {totalDebt.toFixed(2)}</p>
+            <h2 className="text-5xl font-black tracking-tighter text-white">
+              <span className="text-lg font-bold text-white/40 mr-2">AED</span>
+              {totalDebt.toFixed(2)}
+            </h2>
+            <div className="w-14 h-14 bg-orange-500/10 rounded-full flex items-center justify-center text-orange-500 border border-orange-500/20">
+              <TrendingDown size={28} />
+            </div>
           </div>
+          
+          {totalDebt > 0 && (
+            <button 
+              onClick={() => haptic('heavy')}
+              className="btn-primary w-full mt-8 !py-5 flex items-center justify-center gap-3 !rounded-2xl shadow-xl shadow-teal-400/20"
+            >
+              <span className="uppercase font-black italic tracking-tight text-lg">{t.settle_btn}</span>
+              <ArrowUpRight size={22} strokeWidth={3} />
+            </button>
+          )}
         </div>
 
-        {/* Debts List */}
-        {debts.length === 0 ? (
-          <div className="text-center py-16 text-white/30 text-sm font-medium italic">
-            {t.no_debts}
-          </div>
-        ) : (
-          debts.map((debt) => (
-            <motion.div key={debt.id} className="glass-card mb-4 p-6 flex justify-between items-center">
-              <div>
-                <p className="font-bold">{debt.baqala?.name || 'Unknown Baqala'}</p>
-                <p className="text-xs text-white/40">Updated recently</p>
-              </div>
-              <div className="text-right">
-                <p className="text-xl font-black text-orange-400">AED {parseFloat(debt.debt).toFixed(2)}</p>
-                <div className="flex items-center gap-1 text-emerald-400 text-xs font-bold mt-1">
-                  <CheckCircle2 size={14} /> Open
+        {/* LEDGER LIST */}
+        <div className="space-y-4 pb-10">
+          <h4 className="text-[10px] font-black text-white/20 uppercase tracking-[5px] px-2 italic">Active Ledger Entries</h4>
+          
+          {debts.length === 0 ? (
+            <div className="py-20 text-center glass-card border-dashed border-white/10 bg-transparent">
+              <CreditCard size={48} className="mx-auto text-white/5 mb-4" />
+              <p className="text-sm font-medium text-white/20 italic">{t.no_debts}</p>
+            </div>
+          ) : (
+            debts.map((debt) => (
+              <motion.div 
+                key={debt.id}
+                whileTap={{ scale: 0.98 }}
+                className="glass-card !p-6 flex justify-between items-center border-white/5 hover:border-teal-400/20 transition-all"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-black/40 rounded-2xl flex items-center justify-center text-2xl border border-white/5">🏪</div>
+                  <div>
+                    <p className="text-[10px] font-black text-teal-400 uppercase tracking-widest mb-0.5">{t.store_label}</p>
+                    <p className="font-black italic text-lg text-white leading-none">{debt.baqala?.name || "Neighbor Baqala"}</p>
+                  </div>
                 </div>
-              </div>
-            </motion.div>
-          ))
-        )}
+                <div className="text-right">
+                  <p className="text-xl font-black text-orange-400 tracking-tighter">AED {parseFloat(debt.debt_amount).toFixed(2)}</p>
+                  <div className="flex items-center justify-end gap-1 text-[9px] font-black text-emerald-400 uppercase tracking-widest mt-1">
+                    <CheckCircle2 size={12} /> {t.status_open}
+                  </div>
+                </div>
+              </motion.div>
+            ))
+          )}
+        </div>
       </motion.div>
     </div>
   );

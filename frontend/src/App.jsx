@@ -1,154 +1,215 @@
 // ================================================
-// frontend/src/App.jsx - MAIN CUSTOMER DASHBOARD (Telegram MVP Ready)
+// frontend/src/App.jsx - VERSION 3.0 (The Web3 Hub)
 // ================================================
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useApp } from './context/AppContext';
-import AIAssistant from './components/AIAssistant';
-import HisaabTab from './components/HisaabTab';
-import VendorDashboard from './components/VendorDashboard';
 import TopBar from './components/layout/TopBar';
-import { Home, CreditCard, User, Store } from 'lucide-react';
+import CustomerDashboard from './components/CustomerDashboard';
+import VendorDashboard from './components/VendorDashboard';
+import HisaabTab from './components/HisaabTab';
+import AIAssistant from './components/AIAssistant';
+import WelcomeScreen from './components/WelcomeScreen';
+import { Home, CreditCard, User, Store, ShoppingBag } from 'lucide-react';
+import axios from 'axios';
 
 const WebApp = window.Telegram?.WebApp;
+const API_URL = import.meta.env.VITE_API_URL;
 
 export default function App() {
-  const { user, viewMode, setUser, lang, setLang } = useApp();
-  const [activeTab, setActiveTab] = useState('home');
+  const { 
+    user, setUser, 
+    viewMode, setViewMode, 
+    lang, 
+    cart, 
+    activeTab, setActiveTab,
+    setGlobalBqtBalance 
+  } = useApp();
 
-  // Telegram WebApp initialization
-  useEffect(() => {
+  const [loading, setLoading] = useState(true);
+  const [tokens, setTokens] = useState({ locked: 0, available: 0 });
+
+  // 1. TELEGRAM & USER INITIALIZATION
+  const initApp = useCallback(async () => {
     if (WebApp) {
       WebApp.ready();
       WebApp.expand();
-      // Set theme
       WebApp.setHeaderColor('#0a0a0f');
     }
-  }, []);
 
-  // Fetch user on load
-  useEffect(() => {
-    const syncUser = async () => {
-      try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/user/sync`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            telegram_id: WebApp?.initDataUnsafe?.user?.id || null,
-            display_name: WebApp?.initDataUnsafe?.user?.first_name || 'Neighbor',
-          },
-        });
-        const data = await res.json();
-        if (data.user) setUser(data.user);
-      } catch (e) {
-        console.log("Guest mode active");
+    try {
+      // Sync identity with backend (Resolves TG ID to Supabase UUID)
+      const res = await axios.post(`${API_URL}/api/user/sync`, {}, {
+        headers: {
+          telegram_id: WebApp?.initDataUnsafe?.user?.id || "DEBUG_USER",
+          display_name: WebApp?.initDataUnsafe?.user?.first_name || "Neighbor",
+          avatar_url: WebApp?.initDataUnsafe?.user?.photo_url || ""
+        }
+      });
+
+      if (res.data.success) {
+        setUser(res.data.user);
+        fetchBalances(res.data.user.telegram_id);
       }
-    };
-    syncUser();
-  }, []);
+    } catch (e) {
+      console.error("Identity Sync Failed", e);
+    } finally {
+      // Short delay for the splash screen experience
+      setTimeout(() => setLoading(false), 2000);
+    }
+  }, [setUser]);
+
+  // 2. TOKENOMICS SYNC
+  const fetchBalances = async (tgId) => {
+    try {
+      const res = await axios.get(`${API_URL}/api/token/balance`, {
+        headers: { telegram_id: tgId }
+      });
+      setTokens({
+        locked: res.data.locked,
+        available: res.data.available
+      });
+      setGlobalBqtBalance(res.data.available); // Set spendable balance globally
+    } catch (e) {
+      console.error("Balance fetch error", e);
+    }
+  };
+
+  useEffect(() => {
+    initApp();
+  }, [initApp]);
+
+  // Tab Navigation Handler with Haptics
+  const handleTabChange = (tab) => {
+    if (WebApp?.HapticFeedback) WebApp.HapticFeedback.impactOccurred('light');
+    setActiveTab(tab);
+  };
+
+  if (loading) return <WelcomeScreen onComplete={() => setLoading(false)} />;
 
   const isCustomer = viewMode === 'customer';
 
   return (
-    <div className="app-root min-h-screen bg-[#0a0a0f] text-white pb-20">
-      {/* Top Bar */}
-      <TopBar />
+    <div className="app-root min-h-screen bg-[#0a0a0f] text-white flex flex-col">
+      {/* PERSISTENT TOP BAR (Shows spendable BQT) */}
+      <TopBar availableBqt={tokens.available} />
 
-      <AnimatePresence mode="wait">
-        {isCustomer ? (
-          /* ====================== CUSTOMER DASHBOARD ====================== */
-          <motion.div
-            key="customer"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="px-5 pt-4"
-          >
-            {/* Main Content Area */}
-            {activeTab === 'home' && (
-              <div className="py-6">
-                <h1 className="text-4xl font-black italic tracking-tighter mb-2">Welcome back!</h1>
-                <p className="text-white/40">What are we getting from the baqala today?</p>
-                {/* Placeholder for home content - you can expand later */}
-                <div className="h-64 flex items-center justify-center text-white/10 text-sm font-black tracking-widest">
-                  NEIGHBORHOOD STORES GO HERE
+      <main className="flex-1 overflow-y-auto pb-24 scrollbar-hide">
+        <AnimatePresence mode="wait">
+          {isCustomer ? (
+            /* --- RESIDENT VIEW --- */
+            <motion.div
+              key="resident-dash"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 10 }}
+            >
+              {activeTab === 'home' && (
+                <CustomerDashboard 
+                  user={user} 
+                  lang={lang} 
+                  setActiveTab={handleTabChange} 
+                />
+              )}
+              {activeTab === 'hisaab' && (
+                <HisaabTab 
+                  user={user} 
+                  lang={lang} 
+                  lockedBqt={tokens.locked}
+                  refreshBalances={() => fetchBalances(user.telegram_id)}
+                />
+              )}
+              {activeTab === 'profile' && (
+                <div className="px-6 py-10 text-center">
+                  <div className="w-24 h-24 bg-white/5 rounded-full mx-auto mb-6 flex items-center justify-center border border-white/10">
+                    <User size={48} className="text-white/20" />
+                  </div>
+                  <h2 className="text-2xl font-black italic tracking-tight">{user?.display_name}</h2>
+                  <p className="text-white/40 text-sm mt-2 uppercase tracking-widest">Resident ID: {user?.id?.slice(0,8)}</p>
+                  
+                  <div className="mt-10 space-y-4">
+                     <button className="w-full py-4 bg-white/5 border border-white/10 rounded-2xl text-sm font-bold opacity-50 cursor-not-allowed">
+                       Link TON Wallet (Coming Soon)
+                     </button>
+                     <button 
+                        onClick={() => setViewMode('merchant')}
+                        className="w-full py-4 bg-orange-500/10 border border-orange-500/20 text-orange-500 rounded-2xl text-sm font-black uppercase tracking-widest"
+                     >
+                       Switch to Merchant Mode
+                     </button>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </motion.div>
+          ) : (
+            /* --- MERCHANT VIEW --- */
+            <motion.div
+              key="merchant-dash"
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+            >
+              <VendorDashboard user={user} lang={lang} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </main>
 
-            {activeTab === 'hisaab' && <HisaabTab user={user} lang={lang} />}
-
-            {activeTab === 'profile' && (
-              <div className="py-6 text-center">
-                <p className="text-white/40">Profile &amp; Settings coming soon...</p>
-              </div>
-            )}
-
-            {/* AI GENIE FLOATING BUTTON - NOW IN MAIN CUSTOMER DASHBOARD */}
-            <AIAssistant
-              user={user}
-              lang={lang}
-              currentBaqala={null} // Will be passed from context later if needed
-              setActiveTab={setActiveTab}
-              onOrderSuccess={() => {
-                // Refresh hisaab tab if needed
-                if (activeTab === 'hisaab') {
-                  // You can add a refresh callback later
-                }
-              }}
-            />
-          </motion.div>
-        ) : (
-          /* ====================== VENDOR DASHBOARD ====================== */
-          <motion.div
-            key="vendor"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <VendorDashboard user={user} lang={lang} />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* BOTTOM NAV - CUSTOMER ONLY */}
+      {/* FLOATING AI GENIE (Accessible to Residents) */}
       {isCustomer && (
-        <div className="fixed bottom-0 left-0 right-0 bg-[#0a0a0f]/90 backdrop-blur-2xl border-t border-white/10 z-50">
-          <div className="max-w-[500px] mx-auto flex justify-around items-center py-3 px-6">
-            <button
-              onClick={() => setActiveTab('home')}
-              className={`flex flex-col items-center ${activeTab === 'home' ? 'text-teal-400' : 'text-white/40'}`}
-            >
-              <Home size={24} />
-              <span className="text-[10px] font-bold mt-1">Home</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('hisaab')}
-              className={`flex flex-col items-center ${activeTab === 'hisaab' ? 'text-teal-400' : 'text-white/40'}`}
-            >
-              <CreditCard size={24} />
-              <span className="text-[10px] font-bold mt-1">Hisaab</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('profile')}
-              className={`flex flex-col items-center ${activeTab === 'profile' ? 'text-teal-400' : 'text-white/40'}`}
-            >
-              <User size={24} />
-              <span className="text-[10px] font-bold mt-1">Me</span>
-            </button>
-
-            <button
-              onClick={() => { /* Toggle to vendor if needed */ }}
-              className="flex flex-col items-center text-white/40"
-            >
-              <Store size={24} />
-              <span className="text-[10px] font-bold mt-1">Switch</span>
-            </button>
-          </div>
-        </div>
+        <AIAssistant 
+          user={user} 
+          lang={lang} 
+          setActiveTab={handleTabChange}
+          onOrderSuccess={() => fetchBalances(user.telegram_id)}
+        />
       )}
+
+      {/* BOTTOM NAVIGATION */}
+      <nav className="bottom-nav">
+        <div className="max-w-[500px] mx-auto flex justify-around items-center py-4 px-2">
+          <NavBtn 
+            active={activeTab === 'home'} 
+            onClick={() => handleTabChange('home')} 
+            icon={<ShoppingBag size={24} />} 
+            label="Shop" 
+          />
+          <NavBtn 
+            active={activeTab === 'hisaab'} 
+            onClick={() => handleTabChange('hisaab')} 
+            icon={<CreditCard size={24} />} 
+            label="Hisaab" 
+          />
+          <NavBtn 
+            active={activeTab === 'profile'} 
+            onClick={() => handleTabChange('profile')} 
+            icon={<User size={24} />} 
+            label="Me" 
+          />
+          {!isCustomer && (
+            <NavBtn 
+              active={false} 
+              onClick={() => setViewMode('customer')} 
+              icon={<Store size={24} />} 
+              label="Exit Shop" 
+            />
+          )}
+        </div>
+      </nav>
     </div>
+  );
+}
+
+function NavBtn({ active, onClick, icon, label }) {
+  return (
+    <button 
+      onClick={onClick}
+      className={`flex flex-col items-center gap-1 transition-all duration-300 ${active ? 'text-teal-400 scale-110' : 'text-white/30'}`}
+    >
+      {icon}
+      <span className={`text-[10px] font-black uppercase tracking-tighter ${active ? 'opacity-100' : 'opacity-0'}`}>
+        {label}
+      </span>
+    </button>
   );
 }
