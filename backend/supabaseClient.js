@@ -1,5 +1,5 @@
 // ================================================
-// backend/supabaseClient.js - COMPLETE with RLS + Context
+// backend/supabaseClient.js - VERSION 2.0 (Tokenomics + PI Ready)
 // ================================================
 
 const { createClient } = require('@supabase/supabase-js');
@@ -14,20 +14,28 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 /**
- * Standard Supabase Client
+ * Standard Supabase Client (used by most routes)
  */
 const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false,
+  },
+  global: {
+    headers: { 'x-application-name': 'baqala-network' }
   }
 });
 
 /**
- * RLS Helper: returns a client scoped to a specific Telegram User.
- * This satisfies the SQL policy: current_setting('app.current_telegram_id')
+ * RLS Scoped Client - Critical for Telegram users
+ * Uses the custom policy: current_setting('app.current_telegram_id')
  */
 const getScopedClient = (telegramId) => {
+  if (!telegramId) {
+    console.warn("⚠️ getScopedClient called without telegramId");
+    return supabase;
+  }
+
   return createClient(supabaseUrl, supabaseAnonKey, {
     global: {
       headers: {
@@ -41,17 +49,47 @@ const getScopedClient = (telegramId) => {
 };
 
 /**
- * Database initialization helper
- * Sets the local session variable for the current transaction
+ * Sets the RLS context for the current transaction
+ * This satisfies the PostgreSQL policy we created in the SQL schema
  */
 async function setRlsContext(client, telegramId) {
-  await client.rpc('set_app_context', { tg_id: telegramId.toString() });
+  if (!telegramId) return;
+  try {
+    await client.rpc('set_app_context', { tg_id: telegramId.toString() });
+  } catch (err) {
+    console.error("Failed to set RLS context:", err.message);
+  }
 }
 
-console.log("✅ Supabase client initialized for Baqala Network - Hisaab + Wallet Ready");
+/**
+ * Quick helper to get or create token balance for a user
+ * (Used by tokenomics logic later)
+ */
+async function getOrCreateTokenBalance(profileId) {
+  const { data, error } = await supabase
+    .from('token_balances')
+    .select('bqt_balance')
+    .eq('profile_id', profileId)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  if (!data) {
+    const { data: newBalance } = await supabase
+      .from('token_balances')
+      .insert([{ profile_id: profileId, bqt_balance: 0 }])
+      .select()
+      .single();
+    return newBalance;
+  }
+  return data;
+}
+
+console.log("✅ Supabase client initialized - Baqala Network v2.0 (Tokenomics + PI Ready)");
 
 module.exports = {
   supabase,
   getScopedClient,
-  setRlsContext
+  setRlsContext,
+  getOrCreateTokenBalance   // ← New helper for tokenomics
 };

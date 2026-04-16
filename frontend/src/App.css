@@ -1,109 +1,87 @@
+/* ================================================
+   frontend/src/index.css - TELEGRAM MVP OPTIMIZED
+   ================================================ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
-  --teal: #00f5d4;
-  --orange: #ff5e00;
-  --neon-glow: 0 0 25px -5px rgb(0 245 212 / 0.6);
-  --glass: rgba(15, 23, 42, 0.82);
-  --border: rgba(255, 255, 255, 0.08);
-  --text: #f8fafc;
-  --hint: #94a3b8;
+  --lux-dark: #0a0a0f;
+  --lux-glass: rgba(255,255,255,0.06);
+  --lux-border: rgba(255,255,255,0.1);
+  --logo-teal: #00f5d4;
+  --logo-orange: #ff5e00;
 }
 
 * {
-  box-sizing: border-box;
   margin: 0;
   padding: 0;
+  box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
 }
 
-body {
-  font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
-  background: #0a0a0f;
-  color: var(--text);
-  line-height: 1.5;
+body, #root {
+  height: 100%;
+  background: var(--lux-dark);
+  color: #f8fafc;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   overflow-x: hidden;
-  background-image: 
-    radial-gradient(circle at 20% 30%, rgba(0, 245, 212, 0.12) 0%, transparent 50%),
-    radial-gradient(circle at 80% 70%, rgba(255, 94, 0, 0.08) 0%, transparent 50%);
-  background-attachment: fixed;
 }
 
+/* Telegram Mini App Safe Area */
 .app-root {
   min-height: 100vh;
-  background: #0a0a0f;
+  padding-bottom: env(safe-area-inset-bottom, 20px);
 }
 
-/* ====================== TOP BAR ====================== */
-.top-bar {
-  background: rgba(10, 10, 15, 0.95);
-  backdrop-filter: blur(20px);
-  border-bottom: 1px solid var(--border);
-  padding: 14px 20px;
-  position: sticky;
-  top: 0;
-  z-index: 1000;
-}
-
-/* ====================== GLASS CARDS ====================== */
+/* Glass Card - Used everywhere */
 .glass-card {
-  background: var(--glass);
-  border: 1px solid var(--border);
-  border-radius: 24px;
-  padding: 20px;
-  box-shadow: var(--neon-glow);
-  transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
-  overflow: hidden;
+  background: var(--lux-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--lux-border);
+  border-radius: 28px;
+  box-shadow: 0 15px 35px -15px rgba(0, 0, 0, 0.6);
 }
 
-.glass-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 0 35px -8px rgb(0 245 212);
-}
-
-/* ====================== BUTTONS ====================== */
+/* Primary Button */
 .btn-primary {
   background: linear-gradient(90deg, #00f5d4, #ff5e00);
   background-size: 200% auto;
   color: #000;
-  font-weight: 700;
+  font-weight: 900;
   border: none;
   border-radius: 9999px;
-  padding: 16px 28px;
-  font-size: 16px;
-  box-shadow: var(--neon-glow);
-  transition: all 0.3s ease;
-  width: 100%;
+  padding: 18px 24px;
+  font-size: 18px;
+  letter-spacing: -0.5px;
+  box-shadow: 0 10px 30px -10px rgba(0, 245, 212, 0.5);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.btn-primary:hover {
-  transform: scale(1.03);
-  background-position: 200% center;
+.btn-primary:active {
+  transform: scale(0.96);
 }
 
-.btn-primary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-/* ====================== INPUTS ====================== */
+/* Input Style */
 .input-modern {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 16px;
-  padding: 16px 20px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 9999px;
+  padding: 18px 24px;
   color: white;
   font-size: 16px;
   width: 100%;
-  transition: all 0.3s ease;
 }
 
 .input-modern:focus {
+  border-color: #00f5d4;
   outline: none;
-  border-color: var(--teal);
-  box-shadow: 0 0 0 4px rgba(0, 245, 212, 0.15);
-  background: rgba(0, 245, 212, 0.08);
+  box-shadow: 0 0 0 3px rgba(0, 245, 212, 0.2);
 }
 
-/* ====================== BOTTOM NAV ====================== */
+/* Bottom Navigation */
 .bottom-nav {
   position: fixed;
   bottom: 0;
@@ -111,34 +89,31 @@ body {
   right: 0;
   background: rgba(10, 10, 15, 0.95);
   backdrop-filter: blur(24px);
-  border-top: 1px solid var(--border);
+  border-top: 1px solid rgba(255,255,255,0.1);
   z-index: 1000;
+  padding-bottom: env(safe-area-inset-bottom, 12px);
 }
 
-/* ====================== ANIMATIONS ====================== */
-@keyframes shine {
-  to { background-position: 200% center; }
+/* RTL Support */
+[dir="rtl"] {
+  text-align: right;
 }
 
-/* Utility for spin animation */
-.animate-spin {
-  animation: spin 1s linear infinite;
+/* Scrollbar Hide */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
 
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+/* Fix for Telegram container */
+#root {
+  max-width: 500px;
+  margin: 0 auto;
+  border-left: 1px solid rgba(255,255,255,0.08);
+  border-right: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 0 40px rgba(0,0,0,0.6);
 }
 
-/* Make sure images don't overflow */
-img {
-  display: block;
-  max-width: 100%;
-}
-
-/* Extra polish for Telegram Mini App */
-@media (max-width: 480px) {
-  .glass-card {
-    border-radius: 20px;
-  }
+/* Floating AI Button Safe Zone */
+.fixed.bottom-28 {
+  bottom: calc(80px + env(safe-area-inset-bottom, 0px));
 }

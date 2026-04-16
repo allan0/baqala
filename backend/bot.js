@@ -1,5 +1,5 @@
 // ================================================
-// backend/bot.js - VERSION 14 (UNIFIED AI BRAIN)
+// backend/bot.js - VERSION 15 (Tokenomics + Full Telegram MVP)
 // ================================================
 
 require('dotenv').config();
@@ -11,15 +11,15 @@ const routes = require('./routes');
 const cors = require('cors');
 
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
-const MINI_APP_URL = "https://baqala.vercel.app"; // Your Vercel URL
-const BOT_HANDLE = "Baqalas_bot"; // FIXED HANDLE
-const API_URL = "https://baqala-i2oi.onrender.com/api"; 
+const MINI_APP_URL = "https://baqala.vercel.app";
+const BOT_HANDLE = "Baqalas_bot";
+const API_URL = "https://baqala-i2oi.onrender.com/api";
 
 // --- KHALEEJI & ENGLISH LOCALIZATION ---
 const strings = {
   en: {
-    welcome: (name) => `Assalamu Alaikum, ${name}! 🛒\n\nI am your neighborly AI concierge. I can check prices, browse categories, or open your neighborhood stores in the app.`,
-    store_context: (store) => `Connected to *${store}* 🏪\n\nHow can I help you shop today? You can browse categories below or chat with me about items.`,
+    welcome: (name) => `Assalamu Alaikum, ${name}! 🛒\n\nI am your neighborly AI concierge. I can check prices, browse categories, or open your neighborhood stores.`,
+    store_context: (store) => `Connected to *${store}* 🏪\n\nHow can I help you shop today?`,
     btn_app: "🚀 Open Mini App",
     btn_browse: "📦 Browse Shelves",
     btn_ai: "🧞 Talk to AI Genie",
@@ -33,36 +33,37 @@ const strings = {
     no_items: "This section is currently empty.",
     lang_switched: "Language switched to English 🇺🇸",
     open_cart: "🛒 Finish Order in App",
-    processing: "Processing..."
+    processing: "Processing...",
+    balance: (bqt) => `💎 *Your Baqala Tokens*\n\nYou have *${bqt} BQT*\n(1 BQT = 1 AED spent or redeemed)`
   },
   ar: {
-    welcome: (name) => `يا هلا بك يا ${name} في شبكة دكاكين! 🛒\n\nأنا مساعدك الذكي في الفريج. أقدر أشيك لك على الأسعار، أو تفتح الدكان وتطلب من التطبيق.`,
-    store_context: (store) => `أنت الآن متصل بـ *${store}* 🏪\n\nكيف أقدر أخدمك اليوم؟ تقدر تشوف الأقسام تحت أو تسألني عن أي غرض.`,
+    welcome: (name) => `يا هلا بك يا ${name} في شبكة دكاكين! 🛒\n\nأنا مساعدك الذكي في الفريج.`,
+    store_context: (store) => `أنت الآن متصل بـ *${store}* 🏪\n\nكيف أقدر أخدمك اليوم؟`,
     btn_app: "🚀 افتح تطبيق دكان",
     btn_browse: "📦 تصفح الأرفف",
     btn_ai: "🧞 المساعد الذكي",
     btn_lang: "🌐 English",
     btn_back: "⬅️ الرجوع للقائمة",
     choose_cat: "اختر القسم اللي تبغيه من دكاننا:",
-    ai_intro: "أبشر، اكتب اللي تدور عليه (مثلاً: 'كم سعر الحليب؟') وبشيك لك.",
+    ai_intro: "أبشر، اكتب اللي تدور عليه (مثلاً: 'كم سعر الحليب؟')",
     order_preview: "✨ **ملخص المساعد الذكي**:",
     confirm_hisaab: "✅ إضافة للحساب الرقمي",
     cancel: "❌ إلغاء",
     no_items: "هذا القسم ما فيه بضاعة حالياً.",
     lang_switched: "تم تغيير اللغة إلى العربية 🇦🇪",
     open_cart: "🛒 كمل الطلب في التطبيق",
-    processing: "لحظات..."
+    processing: "لحظات...",
+    balance: (bqt) => `💎 *توكنات بقالاتك*\n\nلديك *${bqt} BQT*\n(1 BQT = 1 درهم صرفت أو استرددت)`
   }
 };
 
-// --- HELPER: GENERATE NATIVE DEEP LINK ---
-// Format: https://t.me/Baqalas_bot/app?startapp=st_ID_ln_LANG
+// --- DEEP LINK ---
 const getDeepLink = (storeId, lang) => {
   const param = `st_${storeId || 'default'}_ln_${lang || 'en'}`;
   return `https://t.me/${BOT_HANDLE}/app?startapp=${param}`;
 };
 
-// --- RENDERER: DYNAMIC INTERFACE ---
+// --- SEND MENU ---
 const sendMenu = async (ctx, lang, storeId) => {
   const t = strings[lang];
   let displayName = "The Neighborhood";
@@ -84,34 +85,46 @@ const sendMenu = async (ctx, lang, storeId) => {
 };
 
 // ==========================================
-// 1. COMMAND HANDLERS
+// COMMAND HANDLERS
 // ==========================================
 
 bot.start(async (ctx) => {
   const payload = ctx.startPayload || ""; 
   const parts = payload.split('_');
-  
-  // startapp format: mode_storeId_lang OR direct start
   const storeId = payload.startsWith('st_') ? parts[1] : 'default';
   const lang = payload.includes('_ln_') ? parts[parts.length - 1] : 'en';
 
-  // FIX: Provide immediate feedback to user
   const processingMessage = await ctx.reply(strings[lang].processing);
 
   try {
     await sendMenu(ctx, lang, storeId);
   } catch (error) {
     console.error("Error in /start handler:", error);
-    ctx.reply("Sorry, something went wrong. Please try again.");
+    ctx.reply("Sorry, something went wrong.");
   } finally {
-    // Clean up the "Processing..." message
     ctx.telegram.deleteMessage(ctx.chat.id, processingMessage.message_id);
   }
 });
 
+// New command: /balance
+bot.command('balance', async (ctx) => {
+  const telegramId = ctx.from.id.toString();
+  try {
+    const { data: profile } = await supabase.from('profiles').select('id').eq('telegram_id', telegramId).single();
+    if (!profile) return ctx.reply("Please start the bot first with /start");
+
+    const { data } = await supabase.from('token_balances').select('bqt_balance').eq('profile_id', profile.id).single();
+    const bqt = data ? parseFloat(data.bqt_balance).toFixed(0) : 0;
+
+    const lang = /[\u0600-\u06FF]/.test(ctx.message.text) ? 'ar' : 'en';
+    ctx.replyWithMarkdown(strings[lang].balance(bqt));
+  } catch (e) {
+    ctx.reply("Could not fetch your balance.");
+  }
+});
 
 // ==========================================
-// 2. INVENTORY BROWSING ACTION
+// INVENTORY BROWSING
 // ==========================================
 
 bot.action(/cats_(.+)_(.+)/, async (ctx) => {
@@ -127,7 +140,8 @@ bot.action(/cats_(.+)_(.+)/, async (ctx) => {
 
 bot.action(/list_(.+)_(.+)_(.+)/, async (ctx) => {
   const [_, storeId, cat, lang] = ctx.match;
-  
+  const t = strings[lang];
+
   const { data: items } = await supabase
     .from('inventory')
     .select('*')
@@ -136,7 +150,7 @@ bot.action(/list_(.+)_(.+)_(.+)/, async (ctx) => {
 
   let text = `📦 *${cat}* Inventory at this Baqala:\n\n`;
   if (!items || items.length === 0) {
-    text += strings[lang].no_items;
+    text += t.no_items;
   } else {
     items.forEach(i => {
       text += `• ${i.name}: *AED ${i.price.toFixed(2)}*\n`;
@@ -144,13 +158,13 @@ bot.action(/list_(.+)_(.+)_(.+)/, async (ctx) => {
   }
 
   ctx.replyWithMarkdown(text, Markup.inlineKeyboard([
-    [Markup.button.url(strings[lang].open_cart, getDeepLink(storeId, lang))],
+    [Markup.button.url(t.open_cart, getDeepLink(storeId, lang))],
     [Markup.button.callback("⬅️ Back to Categories", `cats_${storeId}_${lang}`)]
   ]));
 });
 
 // ==========================================
-// 3. LANGUAGE & NAVIGATION
+// LANGUAGE & NAVIGATION
 // ==========================================
 
 bot.action(/toggle_(.+)_(.+)/, async (ctx) => {
@@ -167,7 +181,7 @@ bot.action(/menu_(.+)_(.+)/, (ctx) => {
 });
 
 // ==========================================
-// 4. AI GENIE TEXT INTERFACE
+// AI GENIE
 // ==========================================
 
 bot.action(/aiprompt_(.+)/, (ctx) => {
@@ -187,10 +201,9 @@ bot.on('text', async (ctx) => {
   try {
     const res = await axios.post(`${API_URL}/ai/parse`, { text, lang });
     if (res.data.success) {
-      const { items, profile } = res.data.orderData;
+      const { items } = res.data.orderData;
       let summary = `*${t.order_preview}*\n\n`;
-      items.forEach(i => summary += `• ${i.qty}x ${i.name} (~AED ${i.price})\n`);
-      summary += `\nTarget Profile: *${profile}*`;
+      items.forEach(i => summary += `• ${i.qty}x ${i.name}\n`);
 
       await ctx.telegram.deleteMessage(ctx.chat.id, loading.message_id);
       
@@ -201,13 +214,15 @@ bot.on('text', async (ctx) => {
       ]));
     }
   } catch (e) {
-    ctx.reply(isArabic ? "ما فهمت عليك، جرب مرة ثانية بشكل أبسط." : "I couldn't parse that. Try something like '2 small waters'.");
+    ctx.reply(isArabic ? "ما فهمت عليك، جرب مرة ثانية." : "I couldn't parse that. Try something like '2 small waters'.");
+  } finally {
+    ctx.telegram.deleteMessage(ctx.chat.id, loading.message_id).catch(() => {});
   }
 });
 
-bot.action('confirm_order', (ctx) => {
+bot.action('confirm_order', async (ctx) => {
   ctx.answerCbQuery("Ledger Updated!");
-  ctx.editMessageText("✅ **Success!** Your order has been anchored to your Digital Hisaab. ra'i al-baqala has been notified.");
+  ctx.editMessageText("✅ **Success!** Your order has been anchored to your Digital Hisaab.\n\nYou earned BQT tokens! Use /balance to check.");
 });
 
 bot.action('cancel_order', (ctx) => {
@@ -215,15 +230,9 @@ bot.action('cancel_order', (ctx) => {
 });
 
 // ==========================================
-// 5. NOTIFICATION SYSTEM (NEW)
+// NOTIFICATION HELPER
 // ==========================================
 
-/**
- * Sends a proactive message to a user.
- * @param {string|number} telegramId The user's Telegram ID.
- * @param {string} message The message to send (supports Markdown).
- * @param {object} [keyboard] Optional Telegraf keyboard Markup.
- */
 const sendNotification = async (telegramId, message, keyboard) => {
   try {
     await bot.telegram.sendMessage(telegramId, message, {
@@ -237,16 +246,14 @@ const sendNotification = async (telegramId, message, keyboard) => {
   }
 };
 
-
 // ==========================================
-// 6. SERVER RUNTIME (EXPRESS + BOT)
+// SERVER
 // ==========================================
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Pass bot instance to routes for notifications
 app.use('/api', (req, res, next) => {
   req.bot = { sendNotification };
   next();
@@ -259,11 +266,9 @@ app.listen(PORT, () => {
 
 bot.launch().then(() => console.log('🤖 @Baqalas_bot is Online'));
 
-// Graceful Shutdown
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
 
-// Export bot for use in other modules (like routes.js for notifications)
 module.exports = {
   bot,
   sendNotification,
